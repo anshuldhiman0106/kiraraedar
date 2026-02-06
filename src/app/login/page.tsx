@@ -90,7 +90,7 @@ const handleGoogleSignIn = async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${location.origin}/profile`,
+      redirectTo: `www.kiraedar.com/profile`, // Replace with your actual domain
     },
   })
 
