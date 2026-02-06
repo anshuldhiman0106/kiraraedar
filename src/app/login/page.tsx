@@ -82,6 +82,17 @@ export default function Login() {
   }
 }
 
+const getURL = () => {
+  let url =
+    process?.env?.NEXT_PUBLIC_VERCEL_URL ?? // Automatically set by Vercel.
+    'http://localhost:3000/'
+  // Make sure to include `https://` when not localhost.
+  url = url.startsWith('http') ? url : `https://${url}`
+  // Make sure to include a trailing `/`.
+  url = url.endsWith('/profile') ? url : `${url}/profile`
+  return url
+}
+
 
 const handleGoogleSignIn = async () => {
   setGoogleLoading(true)
@@ -90,7 +101,7 @@ const handleGoogleSignIn = async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${location.origin}/profile`,
+      redirectTo: getURL(),
     },
   })
 
