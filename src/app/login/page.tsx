@@ -89,7 +89,7 @@ const getURL = () => {
   // Make sure to include `https://` when not localhost.
   url = url.startsWith('http') ? url : `https://${url}`
   // Make sure to include a trailing `/`.
-  url = url.endsWith('/profile') ? url : `${url}/profile`
+  url = url.endsWith('/') ? url : `${url}/profile`
   return url
 }
 
@@ -101,7 +101,7 @@ const handleGoogleSignIn = async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: getURL(),
+      redirectTo: getURL()+'profile',
     },
   })
 
