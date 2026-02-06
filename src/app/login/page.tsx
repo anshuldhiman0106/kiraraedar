@@ -90,7 +90,7 @@ const handleGoogleSignIn = async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `www.kiraedar.com/profile`, // Replace with your actual domain
+      redirectTo: `https://kiraraedar.vercel.app/profile`, // Replace with your actual domain
     },
   })
 
