@@ -83,14 +83,15 @@ export default function Login() {
 }
 
 
-
-
 const handleGoogleSignIn = async () => {
   setGoogleLoading(true)
   setError('')
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
+    options: {
+      redirectTo: `${location.origin}/profile`,
+    },
   })
 
   if (error) {
