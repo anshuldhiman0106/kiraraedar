@@ -6,59 +6,71 @@ import { IconHome, IconSearch } from "@tabler/icons-react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { useAuthSession } from "@/hooks/use-auth-session"
+import HomePage from "@/components/Home"
 
 export default function KiraraedarHero() {
   const router = useRouter()
 
-  const [session, setSession] = useState<any>(null)
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null)
+  const { session, user, loading: authLoading } = useAuthSession()
+  const [statusLoading, setStatusLoading] = useState(false)
+  const [profileStatus, setProfileStatus] = useState<{
+    profileCompleted: boolean
+    phoneVerified: boolean
+  } | null>(null)
 
-  // ✅ Get session and profile
   useEffect(() => {
-    const init = async () => {
-      // Get session
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session)
-      setUser(session?.user ?? null)
+    let active = true
 
-      if (session?.user) {
-        // Get profile_completed
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("profile_completed, phone_verified")
-          .eq("id", session.user.id)
-          .single()
-
-        setProfileCompleted(profileData?.profile_completed ?? false)
-
-        if (!profileData?.profile_completed) {
-          router.push("/profile")
-        }
-          else if (!profileData?.phone_verified) {
-            router.push("/profile/verifyphone");
-            return;
-          }
+    const loadStatus = async () => {
+      if (!user) {
+        setProfileStatus(null)
+        return
       }
 
-      setLoading(false)
+      setStatusLoading(true)
+      const { data } = await supabase
+        .from("profiles")
+        .select("profile_completed, phone_verified")
+        .eq("id", user.id)
+        .single()
+
+      if (!active) return
+      setProfileStatus({
+        profileCompleted: !!data?.profile_completed,
+        phoneVerified: !!data?.phone_verified,
+      })
+      setStatusLoading(false)
     }
 
-    init()
-
-    // Realtime auth listener
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-    })
+    loadStatus()
 
     return () => {
-      listener.subscription.unsubscribe()
+      active = false
     }
-  }, [router])
+  }, [user])
 
-  if (loading) return null
+  useEffect(() => {
+    if (authLoading || statusLoading) return
+    if (!user || !profileStatus) return
+
+    if (!profileStatus.profileCompleted) {
+      router.replace("/profile")
+      return
+    }
+
+    if (!profileStatus.phoneVerified) {
+      router.replace("/profile/verifyphone")
+    }
+  }, [authLoading, statusLoading, user, profileStatus, router])
+
+  if (authLoading || (user && statusLoading)) {
+    return (
+      <section className="min-h-screen flex items-center justify-center">
+        <div className="text-sm text-muted-foreground">Checking session...</div>
+      </section>
+    )
+  }
 
   // ❌ Not logged in UI
   if (!session) {
@@ -101,13 +113,8 @@ export default function KiraraedarHero() {
 
   // ✅ Logged in UI
   return (
-    <section className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-2xl rounded-lg p-8 shadow-lg">
-        <h1 className="mb-4 text-2xl font-bold">Welcome, {user?.email}!</h1>
-        <Button variant="outline" onClick={() => supabase.auth.signOut()}>
-          Sign Out
-        </Button>
-      </div>
-    </section>
+    <>
+    <HomePage onLogout={() => supabase.auth.signOut().then(() => router.replace("/login"))} />
+    </>
   )
 }

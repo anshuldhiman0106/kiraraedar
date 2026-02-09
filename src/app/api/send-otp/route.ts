@@ -16,6 +16,13 @@ export async function POST(req: Request) {
     );
   }
 
+  if (!phone.startsWith("+")) {
+    return NextResponse.json(
+      { error: "Phone must be in E.164 format, e.g. +919876543210" },
+      { status: 400 }
+    );
+  }
+
   try {
     const verification = await client.verify.v2
       .services(process.env.VERIFY_SERVICE_SID!)
@@ -26,14 +33,19 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      status: verification.status, // pending
+      status: verification.status,
     });
-  } catch (err) {
-    console.error(err);
+  } catch (err: any) {
+    console.error("Twilio error:", err?.message);
+    console.error("Twilio code:", err?.code);
+    console.error("Twilio status:", err?.status);
+
     return NextResponse.json(
-      { error: "Failed to send OTP" },
+      {
+        error: err?.message || "Failed to send OTP",
+        code: err?.code,
+      },
       { status: 500 }
     );
   }
 }
-

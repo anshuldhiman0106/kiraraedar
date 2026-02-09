@@ -15,11 +15,11 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { error } from "console";
-import { set } from "zod";
+import { AuthCta } from "@/components/auth-cta";
 
 const OTP_LENGTH = 6;
 const RESEND_TIME = 60;
+
 
 export default function VerifyPhonePage() {
   const router = useRouter();
@@ -28,7 +28,8 @@ export default function VerifyPhonePage() {
   const [otp, setOtp] = useState("");
   const [countdown, setCountdown] = useState(RESEND_TIME);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [authMissing, setAuthMissing] = useState(false);
 
   const canResend = countdown === 0;
 
@@ -42,6 +43,48 @@ export default function VerifyPhonePage() {
 
     return () => clearTimeout(timer);
   }, [countdown, step]);
+
+  /* ---------------- auth guard ---------------- */
+  useEffect(() => {
+    let active = true;
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getUser();
+
+      if (!data.user) {
+        if (!active) return;
+        setAuthMissing(true);
+        setSessionLoading(false);
+        return;
+      }
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("profile_completed, phone_verified")
+        .eq("id", data.user.id)
+        .single();
+
+      if (!active) return;
+
+      if (!profileData?.profile_completed) {
+        router.replace("/profile");
+        return;
+      }
+
+      if (profileData?.phone_verified) {
+        router.replace("/");
+        return;
+      }
+
+      setSessionLoading(false);
+    };
+
+    loadSession();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   /* ---------------- send otp ---------------- */
   const sendOtp = async () => {
@@ -75,7 +118,6 @@ export default function VerifyPhonePage() {
   /* ---------------- verify otp ---------------- */
   const verifyOtp = async () => {
     if (otp.length !== OTP_LENGTH) {
-      setError(true);
       toast.error("Enter 6-digit OTP");
       return;
     }
@@ -94,27 +136,19 @@ export default function VerifyPhonePage() {
 
     if (!res.ok) {
       toast.error(data.error || "Invalid OTP");
-      setError(true);
       return;
     }
 
     toast.success("Phone verified successfully");
-    // Update profile_completed in Supabase
-    const user = supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase
-          .from("profiles")
-          .update({
-            profile_completed: true,
-            phone: phone,
-            phone_verified: true,
-          })
-          .eq("id", user.id)
-          .then(() => {
-            router.push(window.location.origin);
-          });
-      }
-    });
+    const user = await supabase.auth.getUser();
+    if (user.data.user) {
+      await supabase
+        .from("profiles")
+        .upsert({ id: user.data.user.id, phone, phone_verified: true })
+        .then(() => {
+          router.replace("/");
+        });
+    }
   };
 
   /* ---------------- resend ---------------- */
@@ -123,6 +157,23 @@ export default function VerifyPhonePage() {
     setOtp("");
     await sendOtp();
   };
+
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-sm text-muted-foreground">Checking session...</div>
+      </div>
+    );
+  }
+
+  if (authMissing) {
+    return (
+      <AuthCta
+        title="Sign in to verify your phone"
+        description="We need your account to securely confirm your number."
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -141,11 +192,11 @@ export default function VerifyPhonePage() {
           </div>
         </div>
 
-        <Card className="p-8 space-y-8">
+        <Card className="p-8 space-y-6">
           {/* -------- HEADER -------- */}
           <div className="flex flex-col items-center gap-4 text-center">
-            <div className="flex h-15 aspect-square items-center justify-center rounded-full bg-primary/10">
-              <Smartphone className="h-14 aspect-square text-primary" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Smartphone className="h-6 w-6 text-primary" />
             </div>
 
             <h2 className="text-2xl font-semibold">
@@ -188,10 +239,14 @@ export default function VerifyPhonePage() {
               </p>
 
               <div className="flex justify-center">
-                <InputOTP maxLength={OTP_LENGTH} value={otp} onChange={setOtp}>
+                <InputOTP
+                  maxLength={OTP_LENGTH}
+                  value={otp}
+                  onChange={setOtp}
+                >
                   <InputOTPGroup>
                     {[0, 1, 2].map((i) => (
-                      <InputOTPSlot key={i} index={i} aria-invalid={!!error} />
+                      <InputOTPSlot key={i} index={i} />
                     ))}
                   </InputOTPGroup>
 
@@ -199,7 +254,7 @@ export default function VerifyPhonePage() {
 
                   <InputOTPGroup>
                     {[3, 4, 5].map((i) => (
-                      <InputOTPSlot key={i} index={i} aria-invalid={!!error} />
+                      <InputOTPSlot key={i} index={i} />
                     ))}
                   </InputOTPGroup>
                 </InputOTP>

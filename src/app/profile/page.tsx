@@ -62,6 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { ComboboxGroup } from "@base-ui/react";
 import { PhoneInput } from "@/components/phone-input";
+import { AuthCta } from "@/components/auth-cta";
 
 /* -------------------------------------------------------
    TYPES - ALL PROFILE TABLE FIELDS [file:149]
@@ -103,40 +104,49 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("basic");
   const [profile, setProfile] = useState<Profile>({});
   const [loading, setLoading] = useState(true);
+  const [authMissing, setAuthMissing] = useState(false);
   const [uploading, setUploading] = useState(false);
   /* ---------------- EFFECTS ---------------- */
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    let active = true;
 
-  /* ---------------- DATA FUNCTIONS ---------------- */
-  const fetchProfile = async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
-      router.push("/login");
-      return;
-    }
-
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", data.user.id)
-      .single();
-
-    setProfile(profileData ?? { id: data.user.id });
-
-    if (profileData?.profile_completed) {
-      if (!profileData.phone_verified) {
-        router.push("/profile/verifyphone");
+    const fetchProfile = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        if (!active) return;
+        setAuthMissing(true);
+        setLoading(false);
         return;
-      } else {
-      router.push("/" );
+      }
 
-      return;}
-    }
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", data.user.id)
+        .single();
 
-    setLoading(false);
-  };
+      if (!active) return;
+
+      setProfile(profileData ?? { id: data.user.id });
+
+      if (profileData?.profile_completed) {
+        if (!profileData.phone_verified) {
+          router.replace("/profile/verifyphone");
+          return;
+        }
+        router.replace("/");
+        return;
+      }
+
+      setLoading(false);
+    };
+
+    fetchProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   const anchor = useComboboxAnchor();
 
@@ -210,6 +220,15 @@ export default function ProfilePage() {
       <div className="min-h-screen flex items-center justify-center">
         <Spinner className="mr-2" /> Loading…
       </div>
+    );
+  }
+
+  if (authMissing) {
+    return (
+      <AuthCta
+        title="Sign in to edit your profile"
+        description="Create your profile to start searching or listing properties."
+      />
     );
   }
 
