@@ -27,7 +27,7 @@ export default function KiraraedarHero() {
         // Get profile_completed
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("profile_completed")
+          .select("profile_completed, phone_verified")
           .eq("id", session.user.id)
           .single()
 
@@ -36,6 +36,10 @@ export default function KiraraedarHero() {
         if (!profileData?.profile_completed) {
           router.push("/profile")
         }
+          else if (!profileData?.phone_verified) {
+            router.push("/profile/verifyphone");
+            return;
+          }
       }
 
       setLoading(false)

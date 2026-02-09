@@ -126,8 +126,13 @@ export default function ProfilePage() {
     setProfile(profileData ?? { id: data.user.id });
 
     if (profileData?.profile_completed) {
-      router.push("/search");
-      return;
+      if (!profileData.phone_verified) {
+        router.push("/profile/verifyphone");
+        return;
+      } else {
+      router.push("/" );
+
+      return;}
     }
 
     setLoading(false);
@@ -602,11 +607,11 @@ export default function ProfilePage() {
           <div className="p-6 pt-0">
             <Button
               onClick={() =>
-                updateProfile("profile_completed", false).then(() => {
+                updateProfile("profile_completed", true).then(() => {
                   toast.success(
                     "Profile completed! Redirecting to verify phone...",
                   );
-                  router.push(`${window.location.href}/verifyphone`);
+                  router.push(`${window.location.href.replace('#', '')}/verifyphone`);
                 })
               }
               className="w-full"

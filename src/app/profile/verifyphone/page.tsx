@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Smartphone } from "lucide-react";
 import { toast } from "sonner";
-import Router from "next/router";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,16 +15,20 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { error } from "console";
+import { set } from "zod";
 
 const OTP_LENGTH = 6;
 const RESEND_TIME = 60;
 
 export default function VerifyPhonePage() {
+  const router = useRouter();
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [countdown, setCountdown] = useState(RESEND_TIME);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   const canResend = countdown === 0;
 
@@ -70,6 +75,7 @@ export default function VerifyPhonePage() {
   /* ---------------- verify otp ---------------- */
   const verifyOtp = async () => {
     if (otp.length !== OTP_LENGTH) {
+      setError(true);
       toast.error("Enter 6-digit OTP");
       return;
     }
@@ -88,11 +94,27 @@ export default function VerifyPhonePage() {
 
     if (!res.ok) {
       toast.error(data.error || "Invalid OTP");
+      setError(true);
       return;
     }
 
     toast.success("Phone verified successfully");
-    Router.push("/");
+    // Update profile_completed in Supabase
+    const user = supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase
+          .from("profiles")
+          .update({
+            profile_completed: true,
+            phone: phone,
+            phone_verified: true,
+          })
+          .eq("id", user.id)
+          .then(() => {
+            router.push(window.location.origin);
+          });
+      }
+    });
   };
 
   /* ---------------- resend ---------------- */
@@ -166,14 +188,10 @@ export default function VerifyPhonePage() {
               </p>
 
               <div className="flex justify-center">
-                <InputOTP
-                  maxLength={OTP_LENGTH}
-                  value={otp}
-                  onChange={setOtp}
-                >
+                <InputOTP maxLength={OTP_LENGTH} value={otp} onChange={setOtp}>
                   <InputOTPGroup>
                     {[0, 1, 2].map((i) => (
-                      <InputOTPSlot key={i} index={i} />
+                      <InputOTPSlot key={i} index={i} aria-invalid={!!error} />
                     ))}
                   </InputOTPGroup>
 
@@ -181,7 +199,7 @@ export default function VerifyPhonePage() {
 
                   <InputOTPGroup>
                     {[3, 4, 5].map((i) => (
-                      <InputOTPSlot key={i} index={i} />
+                      <InputOTPSlot key={i} index={i} aria-invalid={!!error} />
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
