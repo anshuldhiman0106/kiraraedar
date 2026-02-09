@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { toast } from 'sonner'
 import { Button } from "@/components/ui/button"
 import { Eye, EyeOff } from "lucide-react"  
 import {
@@ -27,60 +28,67 @@ export default function Login() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  const handleAuth = async () => {
+const handleAuth = async () => {
   setLoading(true)
-  setError('')
+  setError("")
 
   try {
-    // 1️⃣ Try SIGN IN first
-    const { data: signInData, error: signInError } =
+    // ✅ 1️⃣ Try LOGIN first
+    const { data: loginData, error: loginError } =
       await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      
 
-    // ✅ If sign-in works → go to profile
-    if (!signInError && signInData.user) {
-      router.push('/profile')
+    // ✅ Login success
+    if (!loginError && loginData?.user) {
+      router.push("/profile")
       return
     }
 
-    
-    if (signInError) {
-      const { data: signUpData, error: signUpError } =
-        await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${location.origin}/profile`,
-          },
-        })
+    // ❌ Login failed → Try SIGNUP
+    const { data: signUpData, error: signUpError } =
+      await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${location.origin}/profile`,
+        },
+      })
 
-      if (signUpError) {
+    // 🚨 If user already exists → password is wrong
+    if (signUpError) {
+      if (signUpError.message.includes("User already registered")) {
+        setError("Incorrect password. Try again.")
+      } else {
         setError(signUpError.message)
-        return
       }
-
-      // 3️⃣ Create profile ONLY for new signup
-      if (signUpData.user) {
-        await supabase.from('profiles').upsert({
-          id: signUpData.user.id,
-          email: signUpData.user.email,
-          profile_photo: signUpData.user.user_metadata.avatar_url || '',
-          full_name: signUpData.user.user_metadata.full_name || '',
-          college: 'Govt College Dharamshala',
-        })
-      }
-
-      router.push('/profile')
+      return
     }
+
+    // ✅ Create profile ONLY for brand new users
+    if (signUpData?.user) {
+      await supabase.from("profiles").upsert({
+        id: signUpData.user.id,
+        email: signUpData.user.email,
+        profile_photo:
+          signUpData.user.user_metadata?.avatar_url || "",
+        full_name:
+          signUpData.user.user_metadata?.full_name || "",
+        college: "Govt College Dharamshala",
+      })
+    }
+
+    toast.success("Check your email for the login link!")
+    
   } catch (err: any) {
-    setError(err.message || 'Something went wrong')
+    setError(err.message || "Something went wrong")
   } finally {
     setLoading(false)
   }
 }
+
+
 
 
 const handleGoogleSignIn = async () => {
@@ -90,7 +98,7 @@ const handleGoogleSignIn = async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `https://${process.env.NEXT_PUBLIC_VERCEL_URL}/profile`, // Replace with your actual domain
+      redirectTo: `${window.location.origin}/profile`, // Replace with your actual domain
     },
   })
 

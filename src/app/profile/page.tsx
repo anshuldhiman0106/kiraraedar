@@ -1,24 +1,38 @@
-
 "use client";
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
-
-
-import { useState, useEffect } from "react";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
-import { toast } from "sonner";
-
-import { supabase } from "@/lib/supabase";
-import Image from "next/image";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Spinner } from "@/components/ui/spinner";
+import { toast } from "sonner";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox";
+import {
+  User,
+  Phone,
+  SlidersHorizontal,
+  UserPlus,
+  Home,
+  Users,
+  Upload,
+  CheckCircle,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
+import { Spinner } from "@/components/ui/spinner";
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -35,151 +49,164 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
-import { User, Phone, SlidersHorizontal } from "lucide-react";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { ComboboxGroup } from "@base-ui/react";
+import { PhoneInput } from "@/components/phone-input";
 
-export default function Profile() {
-  const [activeTab, setActiveTab] = useState("basic");
-  const [profile, setProfile] = useState<any>({});
-  const [loading, setLoading] = useState(true);
-  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
-  const [phoneOtp, setPhoneOtp] = useState("");
-  const [phoneVerifying, setPhoneVerifying] = useState(false);
+/* -------------------------------------------------------
+   TYPES - ALL PROFILE TABLE FIELDS [file:149]
+------------------------------------------------------- */
+type Profile = {
+  id?: string;
+  full_name?: string;
+  gender?: string;
+  phone?: string;
+  phone_verified?: boolean;
+  whatsapp_number?: string;
+  profile_photo?: string;
+  college?: string;
+  year_of_study?: string;
+  branch?: string;
+  role?: string;
+  owner_since_months?: number;
+  verified_landlord?: boolean;
+  roommate_budget_min?: number;
+  roommate_budget_max?: number;
+  gender_preference?: string;
+  roommate_count_pref?: number;
+  food_habits?: string;
+  wake_up_time?: string;
+  preferred_areas?: string[];
+  current_location?: string;
+  avg_rating?: number;
+  total_reviews?: number;
+  verified_student?: boolean;
+  profile_completed?: boolean;
+  bio?: string;
+};
 
-  const [waOtpSent, setWaOtpSent] = useState(false);
-  const [waOtp, setWaOtp] = useState("");
-  const [waVerifying, setWaVerifying] = useState(false);
-
+/* -------------------------------------------------------
+   COMPONENT
+------------------------------------------------------- */
+export default function ProfilePage() {
   const router = useRouter();
-
+  const [activeTab, setActiveTab] = useState("basic");
+  const [profile, setProfile] = useState<Profile>({});
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  /* ---------------- EFFECTS ---------------- */
   useEffect(() => {
-    loadProfile();
+    fetchProfile();
   }, []);
 
-  const sendPhoneOtp = async () => {
-    if (!profile.phone) {
-      toast.error("Enter phone number first");
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: profile.phone,
-    });
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    setPhoneOtpSent(true);
-    toast.success("OTP sent on phone");
-  };
-
-  const verifyPhoneOtp = async () => {
-    setPhoneVerifying(true);
-
-    const { error } = await supabase.auth.verifyOtp({
-      phone: profile.phone,
-      token: phoneOtp,
-      type: "sms",
-    });
-
-    if (error) {
-      toast.error("Invalid OTP");
-      setPhoneVerifying(false);
-      return;
-    }
-
-    await saveField("phone_verified", true);
-    setPhoneVerifying(false);
-    toast.success("Phone number verified");
-  };
-
-  const loadProfile = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+  /* ---------------- DATA FUNCTIONS ---------------- */
+  const fetchProfile = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) {
       router.push("/login");
       return;
     }
 
-    const { data } = await supabase
+    const { data: profileData } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("id", data.user.id)
       .single();
 
-    setProfile(data || { id: user.id });
+    setProfile(profileData ?? { id: data.user.id });
+
+    if (profileData?.profile_completed) {
+      router.push("/search");
+      return;
+    }
+
     setLoading(false);
   };
 
-  const saveField = async (field: string, value: any) => {
-    const newProfile = { ...profile, [field]: value };
-    setProfile(newProfile);
-    await supabase.from("profiles").upsert(newProfile);
+  const anchor = useComboboxAnchor();
+
+  const updateProfile = async (field: keyof Profile, value: any) => {
+    const updated = { ...profile, [field]: value };
+    setProfile(updated);
+    await supabase.from("profiles").upsert(updated);
   };
 
-  const completion = () => {
+  /* ---------------- AVATAR UPLOAD ---------------- */
+  const uploadAvatar = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setUploading(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${profile.id}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (!error) {
+        const { data } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        await updateProfile("profile_photo", data.publicUrl);
+        toast.success("Avatar uploaded!");
+      } else {
+        toast.error("Upload failed");
+      }
+      setUploading(false);
+    },
+    [profile.id],
+  );
+
+  /* ---------------- VALIDATION ---------------- */
+  const isComplete = () => {
+    const required = [
+      profile.full_name,
+      profile.current_location,
+      profile.preferred_areas,
+      profile.gender,
+      profile.role,
+    ];
+    return required.every(Boolean);
+  };
+
+  const completionPercentage = () => {
     const fields = [
       profile.full_name,
+      profile.gender,
       profile.phone,
+      profile.whatsapp_number,
       profile.role,
-      profile.college,
-      profile.gender_preference,
+      profile.current_location,
+      profile.preferred_areas,
+      profile.profile_photo,
+      profile.phone_verified,
     ];
-    const filled = fields.filter(Boolean).length;
-    return Math.round((filled / fields.length) * 100);
+    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
   };
+
+  const indianPhone = (value: string) => `+91${value.replace(/\D/g, "")}`;
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        {" "}
         <Spinner className="mr-2" /> Loading…
       </div>
     );
   }
-
-  const sendWhatsappOtp = async () => {
-    if (!profile.whatsapp_number) {
-      toast.error("Enter WhatsApp number first");
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: profile.whatsapp_number,
-    });
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    setWaOtpSent(true);
-    toast.success("OTP sent on WhatsApp");
-  };
-
-  const verifyWhatsappOtp = async () => {
-    setWaVerifying(true);
-
-    const { error } = await supabase.auth.verifyOtp({
-      phone: profile.whatsapp_number,
-      token: waOtp,
-      type: "sms",
-    });
-
-    if (error) {
-      toast.error("Invalid OTP");
-      setWaVerifying(false);
-      return;
-    }
-
-    await saveField("whatsapp_verified", true);
-    setWaVerifying(false);
-    toast.success("WhatsApp number verified");
-  };
 
   return (
     <div className="min-h-screen bg-muted/40 p-6">
@@ -188,9 +215,9 @@ export default function Profile() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-lg mx-auto space-y-6"
       >
-        {/* Header */}
-        <div className="flex justify-center items-center">
-          <div className="mb-10 flex items-center gap-2 text-white">
+        
+         <div className="flex justify-center">
+          <div className="flex items-center gap-2">
             <img
               src="/logo.svg"
               alt="Kiraraedar Logo"
@@ -201,262 +228,402 @@ export default function Profile() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">Complete your profile</h1>
-            <p className="text-sm text-muted-foreground">
-              This helps us match you faster
-            </p>
-          </div>
-        </div>
+        
 
-        {/* Progress */}
-        <Card className="rounded-2xl">
-          <CardContent className="pt-6 space-y-3">
+        {/* PROFILE STRENGTH */}
+        <Card>
+          <CardContent className="pt-6 space-y-2">
             <div className="flex justify-between text-sm">
               <span>Profile strength</span>
-              <span className="font-medium">{completion()}%</span>
+              <Badge>{completionPercentage()}%</Badge>
             </div>
-            <Progress value={completion()} />
+            <Progress value={completionPercentage()} />
           </CardContent>
         </Card>
 
-        {/* Form Card */}
-        <Card className="rounded-2xl shadow-sm">
+        {/* AVATAR UPLOAD */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Photo</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col items-center space-y-4">
+              <Avatar className="w-24 h-24 border-4 border-background shadow-lg">
+                <AvatarImage src={profile.profile_photo} />
+                <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-2xl">
+                  {profile.full_name?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <Label
+                htmlFor="avatar-upload"
+                className="cursor-pointer flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Upload size={16} />
+                {uploading ? "Uploading..." : "Change photo"}
+              </Label>
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                onChange={uploadAvatar}
+                className="hidden"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* MAIN FORM */}
+        <Card>
           <CardHeader>
             <CardTitle>Your details</CardTitle>
-            <CardDescription>You can edit this anytime</CardDescription>
+            <CardDescription>
+              Complete all fields to start searching
+            </CardDescription>
           </CardHeader>
 
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid grid-cols-3 w-full mb-6">
-                <TabsTrigger value="basic" className="gap-1">
-                  <User size={16} /> Basic
-                </TabsTrigger>
-                <TabsTrigger value="contact" className="gap-1">
-                  <Phone size={16} /> Contact
-                </TabsTrigger>
-                <TabsTrigger value="preferences" className="gap-1">
-                  <SlidersHorizontal size={16} /> Preferences
-                </TabsTrigger>
-              </TabsList>
+              {/* BASIC TAB */}
+              <TabsContent value="basic" className="space-y-8">
+                {/* Basic Info Section */}
+                <div className="space-y-5">
+                  <h3 className="text-sm font-semibold text-muted-foreground">
+                    Basic Information
+                  </h3>
 
-              {/* BASIC */}
-              <TabsContent value="basic" className="space-y-4">
-                <Input
-                  placeholder="Full name"
-                  value={profile.full_name || ""}
-                  onChange={(e) => saveField("full_name", e.target.value)}
-                />
-
-                <Select
-                  value={profile.role || ""}
-                  onValueChange={(v) => saveField("role", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Who are you?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="renter">
-                      Student / Looking for room
-                    </SelectItem>
-                    <SelectItem value="owner">Property owner</SelectItem>
-                    <SelectItem value="roommate_seeker">
-                      Looking for roommate
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={profile.college || ""}
-                  onValueChange={(v) => saveField("college", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="College / Work" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Govt College Dharamshala">
-                      Govt College Dharamshala
-                    </SelectItem>
-                    <SelectItem value="Central University Dharamshala">
-                      Central University Dharamshala
-                    </SelectItem>
-                    <SelectItem value="GDC Kangra">GDC Kangra</SelectItem>
-                    <SelectItem value="Working Professional">
-                      Working Professional
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </TabsContent>
-
-              {/* CONTACT */}
-              <TabsContent value="contact" className="space-y-4">
-                <div className="flex">
-                  <div className="flex items-center px-3 rounded-l-md border border-r-0 bg-muted text-sm">
-                    +91
-                  </div>
-
+                  {/* Full Name */}
                   <Input
-                    className="rounded-l-none"
-                    placeholder="Phone number"
-                    value={profile.phone?.replace("+91", "") || ""}
-                    onChange={(e) =>
-                      saveField(
-                        "phone",
-                        `+91${e.target.value.replace(/\D/g, "")}`,
-                      )
-                    }
-                    disabled={profile.phone_verified}
-                    maxLength={10}
+                    placeholder="Full name *"
+                    value={profile.full_name ?? ""}
+                    onChange={(e) => updateProfile("full_name", e.target.value)}
                   />
-                </div>
 
-                {!profile.phone_verified && !phoneOtpSent && (
-                  <Button variant="outline" onClick={sendPhoneOtp}>
-                    Send OTP
-                  </Button>
-                )}
-
-                {phoneOtpSent && !profile.phone_verified && (
-                  <div className="space-y-3">
-                    <InputOTP
-                      maxLength={6}
-                      value={phoneOtp}
-                      onChange={setPhoneOtp}
+                  {/*Gender*/}
+                  <div>
+                    <Select
+                      value={profile.gender ?? ""}
+                      onValueChange={(v) => updateProfile("gender", v)}
                     >
-                      <InputOTPGroup>
-                        {[...Array(6)].map((_, i) => (
-                          <InputOTPSlot key={i} index={i} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select your gender    *" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Gender</SelectLabel>
 
-                    <Button onClick={verifyPhoneOtp} disabled={phoneVerifying}>
-                      {phoneVerifying ? "Verifying…" : "Verify OTP"}
-                    </Button>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
 
-                {profile.phone_verified && (
-                  <p className="text-sm text-green-600">
-                    Phone number verified ✓
-                  </p>
-                )}
+                  {/* Role */}
+                  <Select
+                    value={profile.role ?? ""}
+                    onValueChange={(v) => updateProfile("role", v)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select your role *" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Role</SelectLabel>
+                        <SelectItem value="renter">
+                          🧑‍🎓 Renter (Student)
+                        </SelectItem>
+                        <SelectItem value="owner">🏠 Owner</SelectItem>
+                        <SelectItem value="other">
+                          💼 Working Professional
+                        </SelectItem>
+                        <SelectItem value="roommate_seeker">
+                          🧑‍🤝‍🧑 Roommate Seeker
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
 
-               
-                <div className="flex">
-  <div className="flex items-center px-3 rounded-l-md border border-r-0 bg-muted text-sm">
-    +91
-  </div>
-
-  <Input
-    className="rounded-l-none"
-    placeholder="WhatsApp number"
-    value={profile.whatsapp_number?.replace("+91", "") || ""}
-    onChange={(e) =>
-      saveField("whatsapp_number", `+91${e.target.value.replace(/\D/g, "")}`)
-    }
-    disabled={profile.whatsapp_verified}
-    maxLength={10}
-  />
-</div>
-
-                {!profile.whatsapp_verified && !waOtpSent && (
-                  <Button variant="outline" onClick={sendWhatsappOtp}>
-                    Send WhatsApp OTP
-                  </Button>
-                )}
-
-                {waOtpSent && !profile.whatsapp_verified && (
-                  <div className="space-y-3">
-                    <InputOTP maxLength={6} value={waOtp} onChange={setWaOtp}>
-                      <InputOTPGroup>
-                        {[...Array(6)].map((_, i) => (
-                          <InputOTPSlot key={i} index={i} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-
-                    <Button onClick={verifyWhatsappOtp} disabled={waVerifying}>
-                      {waVerifying ? "Verifying…" : "Verify WhatsApp OTP"}
-                    </Button>
-                  </div>
-                )}
-
-                {profile.whatsapp_verified && (
-                  <p className="text-sm text-green-600">
-                    WhatsApp number verified ✓
-                  </p>
-                )}
-
-                <Input
-                  placeholder="Current location"
-                  value={profile.current_location || ""}
-                  onChange={(e) =>
-                    saveField("current_location", e.target.value)
-                  }
-                />
-              </TabsContent>
-
-              {/* PREFERENCES */}
-              <TabsContent value="preferences" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
                   <Input
-                    type="number"
-                    placeholder="Min budget"
-                    value={profile.roommate_budget_min || ""}
+                    placeholder="Current Location"
+                    value={profile.current_location ?? ""}
                     onChange={(e) =>
-                      saveField("roommate_budget_min", Number(e.target.value))
+                      updateProfile("current_location", e.target.value)
                     }
                   />
-                  <Input
-                    type="number"
-                    placeholder="Max budget"
-                    value={profile.roommate_budget_max || ""}
-                    onChange={(e) =>
-                      saveField("roommate_budget_max", Number(e.target.value))
-                    }
-                  />
+
+                  {/* Preferred Areas 
+                   Combobox with multi-select and free input for preferred areas */}
+                  <Combobox
+                    multiple
+                    autoHighlight
+                    value={profile.preferred_areas ?? []}
+                    onValueChange={(v) => updateProfile("preferred_areas", v)}
+                    items={[
+                      "Shyam Nagar",
+                      "McLeod Ganj",
+                      "Dharamkot",
+                      "Naddi",
+                      "Bhagsu",
+                    ]}
+                  >
+                    {/* ✅ Chips UI */}
+
+                    <ComboboxChips ref={anchor} className="w-full">
+                      <ComboboxValue>
+                        {(values: string[]) => (
+                          <>
+                            {values.map((value) => (
+                              <ComboboxChip className="text-base" key={value}>
+                                {value}
+                              </ComboboxChip>
+                            ))}
+                            <ComboboxChipsInput
+                              placeholder={
+                                values.length === 0
+                                  ? "Select preferred areas"
+                                  : ""
+                              }
+                            />
+                          </>
+                        )}
+                      </ComboboxValue>
+                    </ComboboxChips>
+
+                    {/* ✅ Dropdown */}
+                    <ComboboxContent anchor={anchor}>
+                      <ComboboxEmpty>No areas found.</ComboboxEmpty>
+                      <ComboboxList>
+                        {(item) => (
+                          <ComboboxItem key={item} value={item}>
+                            {item}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
                 </div>
 
-                <Select
-                  value={profile.gender_preference || ""}
-                  onValueChange={(v) => saveField("gender_preference", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Room gender preference" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="girls">Girls</SelectItem>
-                    <SelectItem value="boys">Boys</SelectItem>
-                    <SelectItem value="mixed">Mixed</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Renter Section */}
+                {profile.role === "renter" && (
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-6">
+                    <div>
+                      <h3 className="text-sm font-semibold">Student Details</h3>
+                      <p className="text-xs text-muted-foreground">
+                        This helps us show you relevant rooms
+                      </p>
+                    </div>
 
-                <Select
-                  value={profile.food_habits || ""}
-                  onValueChange={(v) => saveField("food_habits", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Food habits" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="veg">Veg</SelectItem>
-                    <SelectItem value="non-veg">Non-veg</SelectItem>
-                    <SelectItem value="both">Both</SelectItem>
-                  </SelectContent>
-                </Select>
+                    <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+                      {/* College */}
+                      <div className="col-span-full">
+                        <Select
+                          disabled
+                          value={profile.college ?? ""}
+                          onValueChange={(v) => updateProfile("college", v)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="College *" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Govt College Dharamshala">
+                              Govt. College Dharamshala
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Branch */}
+                      <div className="col-span-1">
+                        <Select
+                          value={profile.branch ?? ""}
+                          onValueChange={(v) => updateProfile("branch", v)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Branch *" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Branch</SelectLabel>
+                              <SelectItem value="CS">
+                                Computer Science
+                              </SelectItem>
+                              <SelectItem value="BCA">BCA</SelectItem>
+                              <SelectItem value="BT">Biotech</SelectItem>
+                              <SelectItem value="BA">BA</SelectItem>
+                              <SelectItem value="BSC">BSc</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Year */}
+                      <div className="col-span-1">
+                        <Select
+                          value={profile.year_of_study ?? ""}
+                          onValueChange={(v) =>
+                            updateProfile("year_of_study", v)
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Year of study *" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Year of Study</SelectLabel>
+                              <SelectItem value="1">1st Year</SelectItem>
+                              <SelectItem value="2">2nd Year</SelectItem>
+                              <SelectItem value="3">3rd Year</SelectItem>
+                              <SelectItem value="4">4th Year</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {
+                  /*Roommate Seeker Section */
+                  profile.role === "roommate_seeker" && (
+                    <div className="rounded-lg border bg-muted/30 p-4 space-y-6">
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          Roommate Preferences
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          This helps us find you compatible roommates
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+                        <div>
+                          <Select
+                            value={profile.gender_preference ?? ""}
+                            onValueChange={(v) =>
+                              updateProfile("gender_preference", v)
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Gender preference" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Gender Preference</SelectLabel>
+                                <SelectItem value="girls">
+                                  Girls only
+                                </SelectItem>
+                                <SelectItem value="male">Boys only</SelectItem>
+                                <SelectItem value="mixed">Mixed</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Select
+                            value={profile.wake_up_time ?? ""}
+                            onValueChange={(v) =>
+                              updateProfile("wake_up_time", v)
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Wake up time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Wake Up Time</SelectLabel>
+                                <SelectItem value="early">
+                                  Early (before 7am)
+                                </SelectItem>
+                                <SelectItem value="late">
+                                  Late (after 9am)
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Select
+                            value={profile.food_habits ?? ""}
+                            onValueChange={(v) =>
+                              updateProfile("food_habits", v)
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Food habits" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Food Habits</SelectLabel>
+                                <SelectItem value="veg">Vegetarian</SelectItem>
+                                <SelectItem value="non-veg">
+                                  Non-vegetarian
+                                </SelectItem>
+                                <SelectItem value="both">Both</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Select
+                            value={
+                              profile.roommate_count_pref?.toString() ?? ""
+                            }
+                            onValueChange={(v) =>
+                              updateProfile("roommate_count_pref", Number(v))
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Roommate count preference" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>
+                                  Roommate Count Preference
+                                </SelectLabel>
+                                <SelectItem value="0">No preference</SelectItem>
+                                <SelectItem value="1">1 roommate</SelectItem>
+                                <SelectItem value="2">2 roommates</SelectItem>
+                                <SelectItem value="3">3 roommates</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
               </TabsContent>
             </Tabs>
           </CardContent>
 
+          {/* SMART SUBMIT BUTTON */}
           <div className="p-6 pt-0">
-            <Link href="/search">
-              <Button size="lg" className="w-full rounded-xl">
-                Finish & start searching
-              </Button>
-            </Link>
+            <Button
+              onClick={() =>
+                updateProfile("profile_completed", false).then(() => {
+                  toast.success(
+                    "Profile completed! Redirecting to verify phone...",
+                  );
+                  router.push(`${window.location.href}/verifyphone`);
+                })
+              }
+              className="w-full"
+              disabled={!isComplete()}
+            >
+              {isComplete() ? (
+                <>
+                  <CheckCircle size={20} className="mr-2" />
+                  Complete! Start Searching Rooms
+                </>
+              ) : (
+                <>
+                  <UserPlus size={20} className="mr-2" />
+                  Complete all fields first ({completionPercentage()}%)
+                </>
+              )}
+            </Button>
           </div>
         </Card>
       </motion.div>
