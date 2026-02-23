@@ -159,8 +159,9 @@ const addProperty = async () => {
     // 1️⃣ UPLOAD IMAGES FIRST
     let imageUrls: string[] = []
     if (newProperty.images.length > 0) {
-      toast.loading("Uploading images...")
+      const toastId = toast.loading("Uploading images...")
       imageUrls = await uploadImages(newProperty.images)
+      toast.success("Images uploaded successfully!", { id: toastId })
     }
 
     // 2️⃣ SAVE PROPERTY with image URLs
