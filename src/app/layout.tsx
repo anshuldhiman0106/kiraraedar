@@ -13,7 +13,6 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         
-        <Toaster position="top-right" />
         <ThemeProvider
          attribute="class"
             defaultTheme="system"
@@ -21,6 +20,7 @@ export default function RootLayout({
             disableTransitionOnChange>
           {children}
         </ThemeProvider>
+        <Toaster position="top-right" theme="dark" />
       </body>
     </html>
   );
