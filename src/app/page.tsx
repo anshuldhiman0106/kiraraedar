@@ -114,7 +114,7 @@ export default function KiraraedarHero() {
   // ✅ Logged in UI
   return (
     <>
-    <HomePage onLogout={() => supabase.auth.signOut().then(() => router.replace("/login"))} />
+    <HomePage  />
     </>
   )
 }
