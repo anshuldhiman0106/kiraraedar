@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bed, Building, ChevronLeft, Heart, MapPin, Share, ShieldCheck, Sparkles, Users , Verified  } from "lucide-react"
+import { Bed, Building, ChevronLeft, Copy, Heart, MapPin, Share, ShieldCheck, Sparkles, Users, Verified } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -215,6 +215,20 @@ export default function PropertyDetailPage() {
     toast.success(isSaved ? "Removed from favorites" : "Saved to favorites")
   }
 
+  const handleCopyCoordinates = async () => {
+    if (!hasCoordinates) {
+      toast.error("Location coordinates are not available")
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${property.lat},${property.lng}`)
+      toast.success("Coordinates copied")
+    } catch {
+      toast.error("Unable to copy coordinates")
+    }
+  }
+
   const handleNextImage = () => {
     if (!images.length) {
       return
@@ -274,7 +288,12 @@ export default function PropertyDetailPage() {
         </div>
 
         <div className="mb-5">
-          <h1 className="text-2xl lg:text-3xl font-semibold">{property.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl lg:text-3xl font-semibold">{property.title}</h1>
+            <Badge variant={property.available ? "secondary" : "destructive"}>
+              {property.available ? "Available" : "Booked"}
+            </Badge>
+          </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{property.rating ? `★ ${property.rating.toFixed(1)}` : "New listing"}</span>
             <span>•</span>
@@ -409,7 +428,10 @@ export default function PropertyDetailPage() {
             </section>
 
             <section className="rounded-2xl border border-border/60 bg-card p-5">
-              <h3 className="text-xl font-semibold mb-3">Where you&apos;ll be</h3>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-xl font-semibold">Where you&apos;ll be</h3>
+                <Badge variant="outline">Exact Location</Badge>
+              </div>
               <div className="rounded-xl border border-border/60 p-4 bg-background">
                 <div className="inline-flex items-center gap-2 text-sm">
                   <MapPin className="h-4 w-4" />
@@ -430,16 +452,24 @@ export default function PropertyDetailPage() {
                     Exact map coordinates are not available for this listing.
                   </p>
                 )}
-                {externalMapUrl && (
-                  <a
-                    href={externalMapUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex text-sm font-medium text-primary hover:underline"
-                  >
-                    Open in Maps
-                  </a>
-                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {hasCoordinates && (
+                    <Button type="button" variant="outline" size="sm" onClick={handleCopyCoordinates}>
+                      <Copy className="mr-1 h-4 w-4" />
+                      {property.lat?.toFixed(6)}, {property.lng?.toFixed(6)}
+                    </Button>
+                  )}
+                  {externalMapUrl && (
+                    <a
+                      href={externalMapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex text-sm font-medium text-primary hover:underline"
+                    >
+                      Open in Maps
+                    </a>
+                  )}
+                </div>
               </div>
             </section>
           </div>

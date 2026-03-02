@@ -1,5 +1,6 @@
 
 import { ThemeProvider } from "@/components/theme-provider"
+import { SiteFooter } from "@/components/site-footer"
 import type { Metadata } from "next"
 import { getSiteUrl } from "@/lib/seo"
 import "./globals.css";
@@ -90,6 +91,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange>
           {children}
+          <SiteFooter />
         </ThemeProvider>
         <Toaster position="top-right" theme="dark" />
       </body>
