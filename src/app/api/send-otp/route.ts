@@ -35,15 +35,17 @@ export async function POST(req: Request) {
       success: true,
       status: verification.status,
     });
-  } catch (err: any) {
-    console.error("Twilio error:", err?.message);
-    console.error("Twilio code:", err?.code);
-    console.error("Twilio status:", err?.status);
+  } catch (err: unknown) {
+    const twilioError = err as { message?: string; code?: number | string; status?: number };
+
+    console.error("Twilio error:", twilioError?.message);
+    console.error("Twilio code:", twilioError?.code);
+    console.error("Twilio status:", twilioError?.status);
 
     return NextResponse.json(
       {
-        error: err?.message || "Failed to send OTP",
-        code: err?.code,
+        error: twilioError?.message || "Failed to send OTP",
+        code: twilioError?.code,
       },
       { status: 500 }
     );

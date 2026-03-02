@@ -6,21 +6,17 @@ import Link from "next/link";
 import {
   Home,
   Users,
-  Building2,
   Bed,
   DollarSign,
   Shield,
   Edit,
   Plus,
   MapPin,
-  Phone,
   CheckCircle,
   BarChart3,
   Settings,
   Check,
   Upload,
-  ImagePlus,
-  MapPinIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,9 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import AddProperty from "@/components/AddProperty";
 
 type Property = {
   id: string
@@ -56,36 +52,32 @@ type Property = {
   images?: string[]
 }
 
+type Profile = {
+  id?: string
+  role?: string
+  full_name?: string | null
+  email?: string | null
+  phone?: string | null
+  current_location?: string | null
+  bio?: string | null
+  profile_photo?: string | null
+  subscription_status?: string | null
+}
+
 export default function UniversalDashboard() {
-  const [profile, setProfile] = useState<any>({});
+  const [profile, setProfile] = useState<Profile>({});
   const [properties, setProperties] = useState<Property[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
-  const [newProperty, setNewProperty] = useState({
-    title: "",
-    description: "",
-    rent: "",
-    deposit: "",
-    furnished: false,
-    capacity: "",
-    gender: "",
-    available: true,
-    address: "",
-    area: "",
-    near_college: false,
-    images: [] as File[]
-  });
-  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data: profileData } = await supabase
       .from("profiles")
@@ -108,7 +100,15 @@ export default function UniversalDashboard() {
     setLoading(false);
   };
 
-  const updateProfile = async (field: string, value: any) => {
+  useEffect(() => {
+    const run = async () => {
+      await fetchData();
+    };
+
+    void run();
+  }, []);
+
+  const updateProfile = async <K extends keyof Profile>(field: K, value: Profile[K]) => {
     const updates = { ...profile, [field]: value };
     setProfile(updates);
     await supabase.from("profiles").upsert(updates);
@@ -124,7 +124,7 @@ export default function UniversalDashboard() {
     const fileName = `properties/${profile.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
     
     // 1️⃣ UPLOAD to Supabase Storage
-    const { data, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('room-images')  // ← YOUR BUCKET NAME
       .upload(fileName, file, {
         cacheControl: '3600',  // Cache 1 hour
@@ -146,67 +146,9 @@ export default function UniversalDashboard() {
   
   return urls
 }
+  void uploadImages
 
-const addProperty = async () => {
-  if (!newProperty.title || !newProperty.rent || !newProperty.address) {
-    toast.error("Please fill Title, Rent, Address")
-    return
-  }
 
-  setUploading(true)
-  
-  try {
-    // 1️⃣ UPLOAD IMAGES FIRST
-    let imageUrls: string[] = []
-    if (newProperty.images.length > 0) {
-      const toastId = toast.loading("Uploading images...")
-      imageUrls = await uploadImages(newProperty.images)
-      toast.success("Images uploaded successfully!", { id: toastId })
-    }
-
-    // 2️⃣ SAVE PROPERTY with image URLs
-    const propertyData = {
-      owner_id: profile.id,
-      title: newProperty.title,
-      description: newProperty.description,
-      rent: parseInt(newProperty.rent),
-      deposit: newProperty.deposit ? parseInt(newProperty.deposit) : null,
-      furnished: newProperty.furnished,
-      capacity: newProperty.capacity,
-      gender: newProperty.gender,
-      available: newProperty.available,
-      address: newProperty.address,
-      area: newProperty.area,
-      near_college: newProperty.near_college,
-      images: imageUrls,  // ← SAVED PUBLIC URLs!
-      views: 0,
-      inquiries: 0
-    }
-
-    const { error: insertError } = await supabase
-      .from("properties")
-      .insert([propertyData])
-
-    if (insertError) throw insertError
-
-    toast.success(`Property LIVE with ${imageUrls.length} photos!`)
-    
-    // Reset form
-    setNewProperty({
-      title: "", description: "", rent: "", deposit: "",
-      furnished: false, capacity: "", gender: "", available: true,
-      address: "", area: "", near_college: false, images: []
-    })
-    
-    fetchData()  // Refresh properties list
-    
-  } catch (error) {
-    toast.error("Failed to publish property")
-    console.error(error)
-  } finally {
-    setUploading(false)
-  }
-}
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -533,166 +475,21 @@ const addProperty = async () => {
                 className="space-y-8"
               >
                 {/* Add Property Form - FULL properties table */}
-                <Card className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border-emerald-500/30 shadow-2xl">
-                  <CardContent className="p-8">
-                    <h3 className="text-3xl font-bold mb-8 flex items-center gap-3 text-emerald-400">
-                      <Plus className="h-8 w-8" />
-                      Add New Property
-                    </h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Title *</Label>
-                        <Input 
-                          placeholder="Cozy 1BHK near McLeod Ganj" 
-                          value={newProperty.title}
-                          onChange={(e) => setNewProperty({...newProperty, title: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Rent (₹2000-15000) *</Label>
-                        <Input 
-                          type="number" 
-                          min={2000} max={15000}
-                          placeholder="6500"
-                          value={newProperty.rent}
-                          onChange={(e) => setNewProperty({...newProperty, rent: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Deposit (₹0-45000)</Label>
-                        <Input 
-                          type="number" 
-                          min={0} max={45000}
-                          placeholder="15000"
-                          value={newProperty.deposit}
-                          onChange={(e) => setNewProperty({...newProperty, deposit: e.target.value})}
-                        />
-                      </div>
-                      <div className="lg:col-span-2">
-                        <Label className="text-sm font-medium mb-2 block">Area</Label>
-                        <Select 
-                          value={newProperty.area}
-                          onValueChange={(v) => setNewProperty({...newProperty, area: v})}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select area (McLeod Ganj, etc.)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="McLeod Ganj">McLeod Ganj</SelectItem>
-                            <SelectItem value="Shyam Nagar">Shyam Nagar</SelectItem>
-                            <SelectItem value="Ram Nagar">Ram Nagar</SelectItem>
-                            <SelectItem value="Sakoh">Sakoh</SelectItem>
-                            <SelectItem value="Education Board">Education Board</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="lg:col-span-3">
-                        <Label className="text-sm font-medium mb-2 block">Full Address *</Label>
-                        <Input 
-                          placeholder="House no. 123, Main Road, McLeod Ganj"
-                          value={newProperty.address}
-                          onChange={(e) => setNewProperty({...newProperty, address: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Capacity</Label>
-                        <Select 
-                          value={newProperty.capacity}
-                          onValueChange={(v) => setNewProperty({...newProperty, capacity: v})}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Single/Duo/Triple" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="single">Single</SelectItem>
-                            <SelectItem value="duo">Duo (2)</SelectItem>
-                            <SelectItem value="triple">Triple (3)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Gender</Label>
-                        <Select 
-                          value={newProperty.gender}
-                          onValueChange={(v) => setNewProperty({...newProperty, gender: v})}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Boys/Girls/Mixed" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="boys">Boys Only</SelectItem>
-                            <SelectItem value="girls">Girls Only</SelectItem>
-                            <SelectItem value="mixed">Mixed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
 
-                    <Textarea 
-                      className="w-full h-28 mb-6"
-                      placeholder="Description: AC, WiFi, Parking, etc."
-                      value={newProperty.description}
-                      onChange={(e) => setNewProperty({...newProperty, description: e.target.value})}
-                    />
+                 <AddProperty >
+                  <Card className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border-blue-500/30 backdrop-blur-xl hover:bg- hover:shadow-2xl transition-all cursor-pointer :hover:bg-emerald-400/30 border-emerald-400/50">
+                    <CardContent className="  flex items-center justify-center">
+                      <h3 className="text-3xl text-blue-300 h-full text-center flex-col font-bold mb-8 flex items-center  gap-3">
+                        <Plus className="h-8 w-8" />
+                        Add New Property
+                      </h3>
+                     </CardContent>
+                  </Card>
 
-                    <div className="lg:col-span-3 mb-6">
-                      <Label className="text-sm font-medium mb-2 block">Photos (Max 8)</Label>
-                      <div className="flex items-center gap-4 p-4 border-2 border-dashed border-border/50 rounded-2xl h-32 hover:border-primary/50">
-                        <ImagePlus className="h-12 w-12 text-muted-foreground flex-shrink-0" />
-                        <input
-                          id="images"
-                          type="file"
-                          multiple
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const files = Array.from((e.target as HTMLInputElement).files || [])
-                            setNewProperty({...newProperty, images: files.slice(0, 8)})
-                          }}
-                        />
-                        <label htmlFor="images" className="cursor-pointer flex-1">
-                          <p className="font-medium hover:text-primary">Click to upload photos</p>
-                          <p className="text-sm text-muted-foreground">
-                            {newProperty.images.length}/8 photos selected
-                          </p>
-                        </label>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-6 p-4 bg-muted/50 rounded-2xl mb-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label className="text-sm font-medium block">Furnished</Label>
-                          <p className="text-xs text-muted-foreground">AC, Bed, etc.</p>
-                        </div>
-                        <Switch 
-                          checked={newProperty.furnished}
-                          onCheckedChange={(v) => setNewProperty({...newProperty, furnished: v})}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label className="text-sm font-medium block">Near College</Label>
-                          <p className="text-xs text-muted-foreground">Within 2km</p>
-                        </div>
-                        <Switch 
-                          checked={newProperty.near_college}
-                          onCheckedChange={(v) => setNewProperty({...newProperty, near_college: v})}
-                        />
-                      </div>
-                    </div>
+                </AddProperty>
 
-                    <Button
-                      onClick={addProperty}
-                      disabled={uploading}
-                      className="w-full h-16 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 text-xl shadow-xl text-white"
-                    >
-                      {uploading ? "Publishing..." : (
-                        <>
-                          <Plus className="h-6 w-6 mr-3" />
-                          Publish Property Now
-                        </>
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
+               
 
                 {/* Properties Grid */}
                 <Card className="bg-card/50 backdrop-blur-xl shadow-2xl border-border/50">

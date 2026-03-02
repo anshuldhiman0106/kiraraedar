@@ -1,9 +1,8 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -14,18 +13,12 @@ import {
   ComboboxContent,
   ComboboxEmpty,
   ComboboxItem,
-  ComboboxLabel,
   ComboboxList,
   ComboboxValue,
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import {
-  User,
-  Phone,
-  SlidersHorizontal,
   UserPlus,
-  Home,
-  Users,
   Upload,
   CheckCircle,
 } from "lucide-react";
@@ -40,7 +33,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,16 +45,9 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { ComboboxGroup } from "@base-ui/react";
-import { PhoneInput } from "@/components/phone-input";
 import { AuthCta } from "@/components/auth-cta";
 
 /* -------------------------------------------------------
@@ -150,41 +136,38 @@ export default function ProfilePage() {
 
   const anchor = useComboboxAnchor();
 
-  const updateProfile = async (field: keyof Profile, value: any) => {
+  const updateProfile = async (field: keyof Profile, value: unknown) => {
     const updated = { ...profile, [field]: value };
     setProfile(updated);
     await supabase.from("profiles").upsert(updated);
   };
 
   /* ---------------- AVATAR UPLOAD ---------------- */
-  const uploadAvatar = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      setUploading(true);
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${profile.id}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+    setUploading(true);
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${profile.id}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
 
-      const { error } = await supabase.storage
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, file, { upsert: true });
+
+    if (!error) {
+      const { data } = supabase.storage
         .from("avatars")
-        .upload(filePath, file, { upsert: true });
+        .getPublicUrl(filePath);
 
-      if (!error) {
-        const { data } = supabase.storage
-          .from("avatars")
-          .getPublicUrl(filePath);
-
-        await updateProfile("profile_photo", data.publicUrl);
-        toast.success("Avatar uploaded!");
-      } else {
-        toast.error("Upload failed");
-      }
-      setUploading(false);
-    },
-    [profile.id],
-  );
+      await updateProfile("profile_photo", data.publicUrl);
+      toast.success("Avatar uploaded!");
+    } else {
+      toast.error("Upload failed");
+    }
+    setUploading(false);
+  };
 
   /* ---------------- VALIDATION ---------------- */
   const isComplete = () => {
@@ -212,8 +195,6 @@ export default function ProfilePage() {
     ];
     return Math.round((fields.filter(Boolean).length / fields.length) * 100);
   };
-
-  const indianPhone = (value: string) => `+91${value.replace(/\D/g, "")}`;
 
   if (loading) {
     return (

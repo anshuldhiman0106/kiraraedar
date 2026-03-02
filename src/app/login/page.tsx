@@ -18,6 +18,14 @@ import { Label } from "@/components/ui/label"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuthSession } from '@/hooks/use-auth-session'
 
+function getErrorMessage(err: unknown) {
+  if (err instanceof Error) {
+    return err.message
+  }
+
+  return "Something went wrong"
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -92,8 +100,8 @@ const handleAuth = async (event?: FormEvent<HTMLFormElement>) => {
 
     toast.success("Check your email for the login link!")
     
-  } catch (err: any) {
-    setError(err.message || "Something went wrong")
+  } catch (err: unknown) {
+    setError(getErrorMessage(err))
   } finally {
     setLoading(false)
   }
@@ -120,8 +128,8 @@ const handleGoogleSignIn = async () => {
       setError(error.message)
       setGoogleLoading(false)
     }
-  } catch (err: any) {
-    setError(err.message || "Something went wrong")
+  } catch (err: unknown) {
+    setError(getErrorMessage(err))
     setGoogleLoading(false)
   }
 }
