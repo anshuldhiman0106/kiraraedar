@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kiraedar
 
-## Getting Started
+SaaS-style student housing platform for Dharamshala.
 
-First, run the development server:
+## What This Project Includes
+- Property search with filters and map-based discovery
+- Favorites (local storage)
+- Property detail pages with live view/inquiry counters
+- Owner dashboard with listing management
+- Plan activation with Razorpay (verified landlord flow)
+- Phone verification with OTP (2Factor SMS integration)
 
+## Tech Stack
+- Next.js 16 (App Router)
+- React 19 + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (Auth, Postgres, Realtime, Storage)
+- Razorpay (owner plan payments)
+- Leaflet + MapTiler (map search)
+
+## Quick Start
+1. Install dependencies:
+```bash
+npm install
+```
+2. Create `.env.local` from `.env.example`.
+3. Run DB migrations (Supabase CLI):
+```bash
+supabase db push
+```
+4. Start dev server:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Quality Checks
+```bash
+npm run lint
+npm run build
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Documentation
+- [Docs Index](docs/README.md)
+- [Architecture](docs/architecture.md)
+- [Environment Variables](docs/environment-variables.md)
+- [API Reference](docs/api-reference.md)
+- [Deployment Guide](docs/deployment.md)
+- [Operations Runbook](docs/operations-runbook.md)
+- [Launch Checklist](docs/launch-checklist.md)
+- [Security Notes](docs/security.md)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Current Readiness
+- Build: passing
+- Lint: passing with non-blocking image optimization warnings
+- Core flows: implemented (search, listing, owner ops, OTP, payments)
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+Private project.

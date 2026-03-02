@@ -229,6 +229,18 @@ export default function PropertyDetailPage() {
     setActiveImageIndex((current) => (current - 1 + images.length) % images.length)
   }
 
+  const hasCoordinates =
+    typeof property.lat === "number" &&
+    typeof property.lng === "number"
+
+  const mapEmbedUrl = hasCoordinates
+    ? `https://www.openstreetmap.org/export/embed.html?layer=mapnik&marker=${property.lat}%2C${property.lng}&zoom=15`
+    : null
+
+  const externalMapUrl = hasCoordinates
+    ? `https://www.google.com/maps/search/?api=1&query=${property.lat},${property.lng}`
+    : null
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur-xl">
@@ -403,6 +415,31 @@ export default function PropertyDetailPage() {
                   <MapPin className="h-4 w-4" />
                   {property.area || "Dharamshala"} - {property.address}
                 </div>
+                {mapEmbedUrl ? (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-border/60">
+                    <iframe
+                      title={`Map location for ${property.title}`}
+                      src={mapEmbedUrl}
+                      className="h-64 w-full"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Exact map coordinates are not available for this listing.
+                  </p>
+                )}
+                {externalMapUrl && (
+                  <a
+                    href={externalMapUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex text-sm font-medium text-primary hover:underline"
+                  >
+                    Open in Maps
+                  </a>
+                )}
               </div>
             </section>
           </div>
