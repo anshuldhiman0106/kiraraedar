@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const router = useRouter()
   const { user, loading: sessionLoading } = useAuthSession()
+  const appOrigin = typeof window !== "undefined" ? window.location.origin : ""
 
   useEffect(() => {
     if (!sessionLoading && user) {
@@ -71,7 +72,7 @@ const handleAuth = async (event?: FormEvent<HTMLFormElement>) => {
         email,
         password,
         options: {
-          emailRedirectTo: `${location.origin}/profile`,
+          emailRedirectTo: appOrigin ? `${appOrigin}/profile` : undefined,
         },
       })
 
@@ -120,7 +121,7 @@ const handleGoogleSignIn = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/profile`,
+        redirectTo: appOrigin ? `${appOrigin}/profile` : undefined,
       },
     })
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Heart, LayoutDashboard, LogOutIcon, Moon, Sun, UserCircle2 } from "lucide-react"
+import { Heart, LayoutDashboard, LogOutIcon, Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {

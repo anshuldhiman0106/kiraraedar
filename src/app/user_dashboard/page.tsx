@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   BarChart3,
   Bed,
@@ -53,7 +54,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import AddProperty from "@/components/AddProperty";
+
+const AddProperty = dynamic(() => import("@/components/AddProperty"), {
+  ssr: false,
+});
 
 type Property = {
   id: string;
