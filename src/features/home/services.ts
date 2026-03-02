@@ -78,6 +78,19 @@ export async function fetchPropertyById(propertyId: string): Promise<Property | 
   return data as Property
 }
 
+export async function fetchAvailablePropertiesCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from("properties")
+    .select("*", { count: "exact", head: true })
+    .eq("available", true)
+
+  if (error) {
+    throw error
+  }
+
+  return count ?? 0
+}
+
 export async function fetchPropertiesInBounds(bounds: {
   north: number
   south: number

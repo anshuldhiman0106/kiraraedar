@@ -18,13 +18,14 @@ import { MapSearchPanel } from "@/features/home/components/map-search-panel"
 import { HeaderActions } from "@/features/home/components/profile-menu"
 import { SearchBar } from "@/features/home/components/search-bar"
 import { ListingCard } from "@/features/home/components/listing-card"
-import { fetchAvailableProperties, fetchPropertiesInBounds } from "@/features/home/services"
+import { fetchAvailableProperties, fetchAvailablePropertiesCount, fetchPropertiesInBounds } from "@/features/home/services"
 import type { Property } from "@/features/home/types"
 import type { MapBounds } from "@/features/home/components/map-canvas"
 
 export default function HomePage() {
   const PAGE_SIZE = 12
   const [properties, setProperties] = useState<Property[]>([])
+  const [totalAvailableCount, setTotalAvailableCount] = useState<number | null>(null)
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -82,7 +83,11 @@ export default function HomePage() {
     const loadInitialProperties = async () => {
       try {
         setLoading(true)
-        await loadPropertiesPage(0, true)
+        const [count] = await Promise.all([
+          fetchAvailablePropertiesCount(),
+          loadPropertiesPage(0, true),
+        ])
+        setTotalAvailableCount(count)
       } catch (error) {
         console.error(error)
         toast.error("Failed to load properties")
@@ -93,6 +98,93 @@ export default function HomePage() {
 
     loadInitialProperties()
   }, [loadPropertiesPage])
+
+  useEffect(() => {
+    const syncPropertyById = async (propertyId: string) => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select(
+          `
+            *,
+            owner:profiles!properties_owner_id_fkey(full_name, profile_photo, verified_landlord),
+            views,
+            inquiries
+          `,
+        )
+        .eq("id", propertyId)
+        .eq("available", true)
+        .maybeSingle()
+
+      if (error) {
+        console.error(error)
+        return
+      }
+
+      setProperties((currentProperties) => {
+        const exists = currentProperties.some((property) => property.id === propertyId)
+
+        if (!data) {
+          return currentProperties.filter((property) => property.id !== propertyId)
+        }
+
+        if (!exists) {
+          return [data as Property, ...currentProperties]
+        }
+
+        return currentProperties.map((property) =>
+          property.id === propertyId ? ({ ...property, ...(data as Property) }) : property,
+        )
+      })
+    }
+
+    const channel = supabase
+      .channel("home-properties-live")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "properties",
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as { id?: string })?.id
+            if (!deletedId) {
+              return
+            }
+
+            setProperties((currentProperties) =>
+              currentProperties.filter((property) => property.id !== deletedId),
+            )
+            return
+          }
+
+          const nextId = (payload.new as { id?: string })?.id
+          if (!nextId) {
+            return
+          }
+
+          void syncPropertyById(nextId)
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const hasActiveFilters = useMemo(
+    () =>
+      searchQuery.trim().length > 0 ||
+      selectedArea !== "all" ||
+      selectedGender !== "all" ||
+      selectedCapacity !== "all" ||
+      furnishedOnly ||
+      nearCollegeOnly ||
+      !!mapAppliedBounds,
+    [furnishedOnly, mapAppliedBounds, nearCollegeOnly, searchQuery, selectedArea, selectedCapacity, selectedGender],
+  )
 
   useEffect(() => {
     if (!loadMoreRef.current || loading || loadingMore || !hasMore) {
@@ -225,6 +317,10 @@ export default function HomePage() {
     })
   }, [mapAppliedBounds, mapLiveProperties, searchFilteredProperties])
 
+  const displayedRoomsCount = !hasActiveFilters && totalAvailableCount !== null
+    ? totalAvailableCount
+    : filteredProperties.length
+
   const resetFilters = () => {
     setSelectedArea("all")
     setSelectedGender("all")
@@ -314,14 +410,14 @@ export default function HomePage() {
             Find your perfect room
           </h1>
           <p className="text-xl lg:text-2xl text-muted-foreground max-w-2xl mx-auto mb-12 lg:mb-16 leading-relaxed">
-            Discover {filteredProperties.length} matching rooms in Dharamshala at unbeatable prices
+            Discover {displayedRoomsCount} matching rooms in Dharamshala at unbeatable prices
           </p>
         </div>
 
         <div className="mb-10 lg:mb-20 space-y-4 lg:space-y-0">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row gap-2 sm:flex-row sm:items-center sm:gap-4">
-              <h2 className="text-lg sm:text-xl lg:text-3xl font-bold text-foreground">{filteredProperties.length} rooms</h2>
+              <h2 className="text-lg sm:text-xl lg:text-3xl font-bold text-foreground">{displayedRoomsCount} rooms</h2>
               <Separator orientation="vertical" className="hidden sm:block h-6 bg-border" />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="hidden sm:inline">Sort by:</span>

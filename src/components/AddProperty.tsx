@@ -206,6 +206,16 @@ const AddProperty = ({ children }: Props) => {
       return;
     }
 
+    if (!newProperty.capacity) {
+      toast.error("Please select room type");
+      return;
+    }
+
+    if (!newProperty.gender) {
+      toast.error("Please select gender preference");
+      return;
+    }
+
     if (newProperty.rent < 2000 || newProperty.rent > 15000) {
       toast.error("Rent must be between ₹2000 and ₹15000");
       return;
@@ -403,6 +413,53 @@ const AddProperty = ({ children }: Props) => {
 
           <Separator />
 
+          {/* ROOM DETAILS */}
+          <section className="space-y-6">
+            <h3 className="text-lg font-semibold">Room Details</h3>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Room Type *</Label>
+                <Select
+                  value={newProperty.capacity ?? undefined}
+                  onValueChange={(v) =>
+                    setNewProperty({ ...newProperty, capacity: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select room type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">Single</SelectItem>
+                    <SelectItem value="duo">Duo</SelectItem>
+                    <SelectItem value="triple">Triple</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Gender Preference *</Label>
+                <Select
+                  value={newProperty.gender ?? undefined}
+                  onValueChange={(v) =>
+                    setNewProperty({ ...newProperty, gender: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender preference" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="girls">Girls</SelectItem>
+                    <SelectItem value="boys">Boys</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </section>
+
+          <Separator />
+
           {/* AMENITIES */}
           <section className="space-y-6">
             <h3 className="text-lg font-semibold">Amenities</h3>
@@ -524,6 +581,14 @@ const AddProperty = ({ children }: Props) => {
                 }
                 if (!newProperty.address.trim()) {
                   toast.error("Address is required");
+                  return;
+                }
+                if (!newProperty.capacity) {
+                  toast.error("Please select room type");
+                  return;
+                }
+                if (!newProperty.gender) {
+                  toast.error("Please select gender preference");
                   return;
                 }
                 setFormStep(2);
