@@ -26,6 +26,7 @@ export default function VerifyPhonePage() {
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [sessionId, setSessionId] = useState("");
   const [countdown, setCountdown] = useState(RESEND_TIME);
   const [loading, setLoading] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -110,6 +111,7 @@ export default function VerifyPhonePage() {
       return;
     }
 
+    setSessionId(data.sessionId || "");
     setStep("otp");
     setCountdown(RESEND_TIME);
     toast.success("OTP sent");
@@ -127,7 +129,7 @@ export default function VerifyPhonePage() {
     const res = await fetch("/api/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, code: otp }),
+      body: JSON.stringify({ phone, code: otp, sessionId }),
     });
 
     setLoading(false);
@@ -155,6 +157,7 @@ export default function VerifyPhonePage() {
   const resendOtp = async () => {
     if (!canResend) return;
     setOtp("");
+    setSessionId("");
     await sendOtp();
   };
 
@@ -217,7 +220,10 @@ export default function VerifyPhonePage() {
                 defaultCountry="IN"
                 placeholder="Enter phone number"
                 value={phone}
-                onChange={setPhone}
+                onChange={(value) => {
+                  setPhone(value);
+                  setSessionId("");
+                }}
               />
 
               <Button

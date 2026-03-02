@@ -1,22 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
-  Home,
-  Users,
-  Bed,
-  DollarSign,
-  Shield,
-  Edit,
-  Plus,
-  MapPin,
-  CheckCircle,
   BarChart3,
+  Bed,
+  Clock3,
+  DollarSign,
+  Edit,
+  Eye,
+  Home,
+  MapPin,
+  MessageSquare,
+  Plus,
   Settings,
-  Check,
-  Upload,
+  Shield,
+  Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,50 +31,121 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import AddProperty from "@/components/AddProperty";
 
 type Property = {
-  id: string
-  title: string
-  rent: number
-  deposit?: number
-  address: string
-  area?: string
-  gender?: string
-  capacity?: string
-  available: boolean
-  furnished?: boolean
-  near_college?: boolean
-  views: number
-  inquiries: number
-  images?: string[]
-}
+  id: string;
+  title: string;
+  rent: number;
+  deposit?: number;
+  address: string;
+  area?: string;
+  gender?: string;
+  capacity?: string;
+  available: boolean;
+  furnished?: boolean;
+  near_college?: boolean;
+  views: number;
+  inquiries: number;
+  images?: string[];
+};
 
 type Profile = {
-  id?: string
-  role?: string
-  full_name?: string | null
-  email?: string | null
-  phone?: string | null
-  current_location?: string | null
-  bio?: string | null
-  profile_photo?: string | null
-  subscription_status?: string | null
-}
+  id?: string;
+  role?: string;
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  current_location?: string | null;
+  bio?: string | null;
+  profile_photo?: string | null;
+  subscription_status?: string | null;
+  verified_landlord?: boolean | null;
+};
+
+type DashboardTab = "overview" | "profile" | "rooms" | "analytics" | "settings";
+const OWNER_PLAN_PRICE_INR = 100;
+
+type PropertyEditDraft = {
+  id: string;
+  title: string;
+  rent: number;
+  deposit: number;
+  address: string;
+  area: string | null;
+  capacity: string | null;
+  gender: string | null;
+  available: boolean;
+  furnished: boolean;
+  near_college: boolean;
+};
+
+const toEditDraft = (property: Property): PropertyEditDraft => ({
+  id: property.id,
+  title: property.title,
+  rent: property.rent,
+  deposit: property.deposit ?? 0,
+  address: property.address,
+  area: property.area ?? null,
+  capacity: property.capacity ?? null,
+  gender: property.gender ?? null,
+  available: property.available,
+  furnished: !!property.furnished,
+  near_college: !!property.near_college,
+});
 
 export default function UniversalDashboard() {
   const [profile, setProfile] = useState<Profile>({});
   const [properties, setProperties] = useState<Property[]>([]);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [loading, setLoading] = useState(true);
+  const [upgradingPlan, setUpgradingPlan] = useState(false);
+  const [actionPropertyId, setActionPropertyId] = useState<string | null>(null);
+  const [editingProperty, setEditingProperty] = useState<PropertyEditDraft | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const loadRazorpayScript = () =>
+    new Promise<boolean>((resolve) => {
+      if (typeof window !== "undefined" && (window as typeof window & { Razorpay?: unknown }).Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
 
   const fetchData = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
     if (!user) {
       setLoading(false);
       return;
@@ -84,16 +156,16 @@ export default function UniversalDashboard() {
       .select("*")
       .eq("id", user.id)
       .single();
-    setProfile(profileData);
-    console.log("Profile Data:", profileData);
+
+    setProfile(profileData || {});
 
     if (profileData?.role === "owner") {
-      // Fetch from NEW properties table
       const { data: propData } = await supabase
         .from("properties")
         .select("*")
         .eq("owner_id", user.id)
         .order("created_at", { ascending: false });
+
       setProperties(propData || []);
     }
 
@@ -101,447 +173,816 @@ export default function UniversalDashboard() {
   };
 
   useEffect(() => {
-    const run = async () => {
-      await fetchData();
-    };
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
 
-    void run();
+    return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (profile.role !== "owner" || !profile.id) {
+      return
+    }
+
+    const channel = supabase
+      .channel(`owner-properties-live-${profile.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "properties",
+          filter: `owner_id=eq.${profile.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as { id?: string })?.id
+            if (!deletedId) {
+              return
+            }
+            setProperties((current) => current.filter((property) => property.id !== deletedId))
+            return
+          }
+
+          const incoming = payload.new as Property
+          if (!incoming?.id) {
+            return
+          }
+
+          setProperties((current) => {
+            const exists = current.some((property) => property.id === incoming.id)
+            if (!exists) {
+              return [incoming, ...current]
+            }
+            return current.map((property) => (property.id === incoming.id ? { ...property, ...incoming } : property))
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [profile.id, profile.role])
 
   const updateProfile = async <K extends keyof Profile>(field: K, value: Profile[K]) => {
     const updates = { ...profile, [field]: value };
     setProfile(updates);
     await supabase.from("profiles").upsert(updates);
-    toast.success("Profile updated!");
+    toast.success("Profile updated");
   };
 
- const uploadImages = async (files: File[]): Promise<string[]> => {
-  const urls: string[] = []
-  
-  for (const file of files) {
-    // UNIQUE filename: ownerId-timestamp-random.jpg
-    const fileExt = file.name.split('.').pop()
-    const fileName = `properties/${profile.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-    
-    // 1️⃣ UPLOAD to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from('room-images')  // ← YOUR BUCKET NAME
-      .upload(fileName, file, {
-        cacheControl: '3600',  // Cache 1 hour
-        upsert: false
-      })
-    
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      continue
+  const handleToggleAvailability = async (property: Property) => {
+    if (!profile.id) {
+      toast.error("Please login again.");
+      return;
     }
-    
-    // 2️⃣ GET PUBLIC URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('room-images')
-      .getPublicUrl(fileName)
-    
-    urls.push(publicUrl)
-  }
-  
-  return urls
-}
-  void uploadImages
 
+    const nextValue = !property.available;
+    setActionPropertyId(property.id);
+
+    const { error } = await supabase
+      .from("properties")
+      .update({ available: nextValue })
+      .eq("id", property.id)
+      .eq("owner_id", profile.id);
+
+    setActionPropertyId(null);
+
+    if (error) {
+      toast.error("Failed to update status");
+      return;
+    }
+
+    setProperties((current) =>
+      current.map((item) => (item.id === property.id ? { ...item, available: nextValue } : item)),
+    );
+    toast.success(nextValue ? "Property marked available" : "Property marked booked");
+  };
+
+  const handleDeleteProperty = async (propertyId: string) => {
+    if (!profile.id) {
+      toast.error("Please login again.");
+      return;
+    }
+
+    setActionPropertyId(propertyId);
+
+    const { error } = await supabase
+      .from("properties")
+      .delete()
+      .eq("id", propertyId)
+      .eq("owner_id", profile.id);
+
+    setActionPropertyId(null);
+
+    if (error) {
+      toast.error("Failed to delete property");
+      return;
+    }
+
+    setProperties((current) => current.filter((item) => item.id !== propertyId));
+    toast.success("Property deleted");
+  };
+
+  const handleSavePropertyEdit = async () => {
+    if (!editingProperty || !profile.id) {
+      return;
+    }
+
+    if (!editingProperty.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+
+    if (!editingProperty.address.trim()) {
+      toast.error("Address is required");
+      return;
+    }
+
+    if (editingProperty.rent < 2000 || editingProperty.rent > 15000) {
+      toast.error("Rent must be between Rs 2000 and Rs 15000");
+      return;
+    }
+
+    if (editingProperty.deposit < 0 || editingProperty.deposit > 45000) {
+      toast.error("Deposit must be between Rs 0 and Rs 45000");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    const payload = {
+      title: editingProperty.title.trim(),
+      rent: editingProperty.rent,
+      deposit: editingProperty.deposit,
+      address: editingProperty.address.trim(),
+      area: editingProperty.area,
+      capacity: editingProperty.capacity,
+      gender: editingProperty.gender,
+      available: editingProperty.available,
+      furnished: editingProperty.furnished,
+      near_college: editingProperty.near_college,
+    };
+
+    const { error } = await supabase
+      .from("properties")
+      .update(payload)
+      .eq("id", editingProperty.id)
+      .eq("owner_id", profile.id);
+
+    setSavingEdit(false);
+
+    if (error) {
+      toast.error("Failed to save changes");
+      return;
+    }
+
+    setProperties((current) =>
+      current.map((item) => (item.id === editingProperty.id ? { ...item, ...payload } : item)),
+    );
+    setEditingProperty(null);
+    toast.success("Property updated");
+  };
+
+  const handleUpgradePlan = async () => {
+    if (profile.subscription_status === "active") {
+      toast.message("Your premium plan is already active.");
+      return;
+    }
+
+    setUpgradingPlan(true);
+
+    try {
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        toast.error("Failed to load Razorpay checkout.");
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        toast.error("Please login again to continue.");
+        return;
+      }
+
+      const createOrderResponse = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!createOrderResponse.ok) {
+        const errorData = (await createOrderResponse.json().catch(() => null)) as { error?: string } | null;
+        toast.error(errorData?.error || "Unable to start payment.");
+        return;
+      }
+
+      const orderData = (await createOrderResponse.json()) as {
+        key: string;
+        orderId: string;
+        amount: number;
+        currency: string;
+        planName: string;
+      };
+
+      type RazorpayHandlerResponse = {
+        razorpay_order_id: string;
+        razorpay_payment_id: string;
+        razorpay_signature: string;
+      };
+
+      type RazorpayOptions = {
+        key: string;
+        amount: number;
+        currency: string;
+        name: string;
+        description: string;
+        order_id: string;
+        prefill: { name?: string; email?: string; contact?: string };
+        notes: { plan: string };
+        theme: { color: string };
+        handler: (response: RazorpayHandlerResponse) => void | Promise<void>;
+      };
+
+      const RazorpayCtor = (window as Window & { Razorpay: new (options: RazorpayOptions) => { open: () => void } }).Razorpay;
+
+      const razorpay = new RazorpayCtor({
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "Kiraedar",
+        description: orderData.planName,
+        order_id: orderData.orderId,
+        prefill: {
+          name: profile.full_name || "",
+          email: profile.email || "",
+          contact: profile.phone || "",
+        },
+        notes: {
+          plan: orderData.planName,
+        },
+        theme: {
+          color: "#10b981",
+        },
+        handler: async (response) => {
+          const verifyResponse = await fetch("/api/payments/verify", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify(response),
+          });
+
+          if (!verifyResponse.ok) {
+            toast.error("Payment verification failed.");
+            return;
+          }
+
+          const verifyData = (await verifyResponse.json()) as {
+            success: boolean;
+            subscription_status?: string;
+            verified_landlord?: boolean;
+          };
+
+          if (!verifyData.success) {
+            toast.error("Payment verification failed.");
+            return;
+          }
+
+          setProfile((current) => ({
+            ...current,
+            subscription_status: verifyData.subscription_status ?? "active",
+            verified_landlord: verifyData.verified_landlord ?? true,
+          }));
+
+          toast.success("Plan activated. Verified landlord tag enabled.");
+        },
+      });
+
+      razorpay.open();
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not complete the payment flow.");
+    } finally {
+      setUpgradingPlan(false);
+    }
+  };
+
+  const totalViews = useMemo(
+    () => properties.reduce((sum, property) => sum + (property.views || 0), 0),
+    [properties],
+  );
+
+  const totalInquiries = useMemo(
+    () => properties.reduce((sum, property) => sum + (property.inquiries || 0), 0),
+    [properties],
+  );
+
+  const averageRent = useMemo(() => {
+    if (!properties.length) {
+      return 0;
+    }
+
+    return Math.round(properties.reduce((sum, property) => sum + property.rent, 0) / properties.length);
+  }, [properties]);
+
+  const occupancyRate = useMemo(() => {
+    if (!properties.length) {
+      return 0;
+    }
+
+    const occupied = properties.filter((property) => !property.available).length;
+    return Math.round((occupied / properties.length) * 100);
+  }, [properties]);
+
+  const topProperties = useMemo(
+    () => [...properties].sort((a, b) => b.inquiries - a.inquiries).slice(0, 5),
+    [properties],
+  );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
+    return <div className="flex min-h-screen items-center justify-center">Loading dashboard...</div>;
   }
 
   return (
-    <div className="min-h-screen ">
-      {/* HEADER - Your Logo Style */}
-      <div className="bg-card/20 backdrop-blur-xl border-b border-border/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 flex items-center justify-center rounded-xlshadow-xl">
-                <img src="logo.svg" alt="" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-semibold bg-gradient-to-r from-emerald-400 to-green-500 bg-clip-text">
-                  Kiraedar
-                </h1>
-                <p className="text-muted-foreground text-lg capitalize">
-                  {profile.role} Dashboard
-                </p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/85 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-card">
+              <img src="/logo.svg" alt="Kiraedar logo" className="h-6 w-6" />
             </div>
-            <div className="flex gap-3">
-              <Link href="/">
-                <Button variant="outline" className="h-12 px-8 rounded-xl">
-                  <Home className="h-5 w-5 mr-2" />
-                  Browse
-                </Button>
-              </Link>
+            <div>
+              <h1 className="text-xl font-semibold">Kiraedar</h1>
+              <p className="text-xs text-muted-foreground capitalize">{profile.role || "user"} dashboard</p>
             </div>
           </div>
+
+          <Link href="/">
+            <Button variant="outline" className="h-10 rounded-xl px-4">
+              <Home className="mr-2 h-4 w-4" />
+              Browse
+            </Button>
+          </Link>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-12 lg:py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          
-          {/* SIDEBAR - Your Style */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="grid grid-cols-1 w-full bg-card/50 backdrop-blur-xl rounded-2xl p-2 shadow-xl">
-              <Button
-                variant={activeTab === "overview" ? "default" : "ghost"}
-                className="h-16 rounded-xl justify-start data-[state=on]:bg-primary/90"
-                onClick={() => setActiveTab("overview")}
-              >
-                <BarChart3 className="h-5 w-5 mr-3" /> Overview
+      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-4 lg:py-8">
+        <aside className="space-y-4 lg:col-span-1">
+          <Card className="border-border/60 shadow-sm">
+            <CardContent className="grid gap-1 p-2">
+              <Button variant={activeTab === "overview" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("overview")}>
+                <BarChart3 className="mr-2 h-4 w-4" /> Overview
               </Button>
-              <Button
-                variant={activeTab === "profile" ? "default" : "ghost"}
-                className="h-16 rounded-xl justify-start data-[state=on]:bg-primary/90"
-                onClick={() => setActiveTab("profile")}
-              >
-                <Edit className="h-5 w-5 mr-3" /> Profile
+              <Button variant={activeTab === "profile" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("profile")}>
+                <Edit className="mr-2 h-4 w-4" /> Profile
               </Button>
-              {profile.role === "owner" && (
-                <>
-                  <Button
-                    variant={activeTab === "rooms" ? "default" : "ghost"}
-                    className="h-16 rounded-xl justify-start data-[state=on]:bg-primary/90"
-                    onClick={() => setActiveTab("rooms")}
-                  >
-                    <Bed className="h-5 w-5 mr-3" /> Properties
-                  </Button>
-                  <Button
-                    variant={activeTab === "analytics" ? "default" : "ghost"}
-                    className="h-16 rounded-xl justify-start data-[state=on]:bg-primary/90"
-                    onClick={() => setActiveTab("analytics")}
-                  >
-                    <BarChart3 className="h-5 w-5 mr-3" /> Analytics
-                  </Button>
-                </>
-              )}
-              <Button
-                variant={activeTab === "settings" ? "default" : "ghost"}
-                className="h-16 rounded-xl justify-start data-[state=on]:bg-primary/90"
-                onClick={() => setActiveTab("settings")}
-              >
-                <Settings className="h-5 w-5 mr-3" /> Settings
+              <Button variant={activeTab === "rooms" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("rooms")}>
+                <Bed className="mr-2 h-4 w-4" /> Properties
               </Button>
-            </div>
+              <Button variant={activeTab === "analytics" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("analytics")}>
+                <TrendingUp className="mr-2 h-4 w-4" /> Analytics
+              </Button>
+              <Button variant={activeTab === "settings" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("settings")}>
+                <Settings className="mr-2 h-4 w-4" /> Settings
+              </Button>
+            </CardContent>
+          </Card>
 
-            {/* STATS CARDS */}
-            <div className="space-y-4">
-              <Card className="bg-gradient-to-br from-emerald-500/20 to-green-500/20 border-emerald-500/30 backdrop-blur-xl hover:shadow-2xl transition-all">
-                <CardContent className="p-6 cursor-pointer">
-                  <div className="text-3xl font-black text-emerald-400">
-                    {profile.role === "owner" ? properties.length : "98%"}
-                  </div>
-                  <p className="text-sm text-emerald-300 mt-1">
-                    {profile.role === "owner"
-                      ? "Active Properties"
-                      : "Profile Complete"}
-                  </p>
-                </CardContent>
-              </Card>
+          <Card className="border-emerald-500/30 bg-emerald-500/10 shadow-sm">
+            <CardContent className="p-5">
+              <p className="text-xs uppercase tracking-wide text-emerald-700">Active properties</p>
+              <p className="mt-2 text-3xl font-semibold text-emerald-600">{properties.length}</p>
+            </CardContent>
+          </Card>
+        </aside>
 
-              {profile.role === "owner" && (
-                <Card className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border-blue-500/30 backdrop-blur-xl hover:shadow-2xl transition-all">
-                  <CardContent className="p-6 cursor-pointer">
-                    <div className="text-3xl font-black text-blue-400">
-                      {properties.reduce((sum, p) => sum + p.views, 0)}
-                    </div>
-                    <p className="text-sm text-blue-300 mt-1">Total Views</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+        <section className="space-y-6 lg:col-span-3">
+          {activeTab === "overview" && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="border-border/60 shadow-sm"><CardContent className="p-5"><div className="flex items-center justify-between text-sm text-muted-foreground"><span>Total Views</span><Eye className="h-4 w-4" /></div><p className="mt-2 text-3xl font-semibold">{totalViews}</p></CardContent></Card>
+                <Card className="border-border/60 shadow-sm"><CardContent className="p-5"><div className="flex items-center justify-between text-sm text-muted-foreground"><span>Inquiries</span><MessageSquare className="h-4 w-4" /></div><p className="mt-2 text-3xl font-semibold">{totalInquiries}</p></CardContent></Card>
+                <Card className="border-border/60 shadow-sm"><CardContent className="p-5"><div className="flex items-center justify-between text-sm text-muted-foreground"><span>Avg Rent</span><DollarSign className="h-4 w-4" /></div><p className="mt-2 text-3xl font-semibold">Rs {averageRent}</p></CardContent></Card>
+                <Card className="border-border/60 shadow-sm"><CardContent className="p-5"><div className="flex items-center justify-between text-sm text-muted-foreground"><span>Occupancy</span><TrendingUp className="h-4 w-4" /></div><p className="mt-2 text-3xl font-semibold">{occupancyRate}%</p></CardContent></Card>
+              </div>
 
-          {/* MAIN CONTENT */}
-          <div className="lg:col-span-3 space-y-8">
-            
-            {/* OVERVIEW - Your Style */}
-            {activeTab === "overview" && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <Card className="bg-card/50 backdrop-blur-xl shadow-2xl border-border/50">
-                    <CardContent className="p-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center">
-                          <Shield className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-xl">Plan Status</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Your subscription
-                          </p>
-                        </div>
-                      </div>
-                      {profile.subscription_status === "active" ? (
-                        <Badge className="text-lg px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
-                          Active - Featured Owner
-                        </Badge>
-                      ) : (
-                        <Badge className="text-lg px-6 py-3 bg-red-500/50 text-white">
-                          Inactive - Basic Plan
-                        </Badge>
-                      )}
-                      {profile.subscription_status !== "active" ? (
-                        <p className="text-sm text-muted-foreground mt-3">
-                          Upgrade to get featured listings and more leads!
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground mt-3">
-                          Next payment: Mar 1st, 2026
-                        </p>
-                      )}
-                      {profile.subscription_status == "active" ? (
-                        <Button className="mt-4 w-full h-12 rounded-xl">
-                          Manage Subscription
-                        </Button>
-                      ) : (
-                        <Button className="mt-4 w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white">
-                          Buy Premium
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-card/50 backdrop-blur-xl shadow-2xl border-border/50">
-                    <CardContent className="p-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center">
-                          <DollarSign className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-xl">Earnings</h3>
-                          <p className="text-sm text-muted-foreground">
-                            This month
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-4xl font-black text-emerald-500 mb-2">
-                        ₹24,750
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-emerald-400 mb-6">
-                        <CheckCircle className="h-4 w-4" />
-                        12 leads converted
-                      </div>
-                      <Button className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600">
-                        View Payouts
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </motion.div>
-            )}
-
-            {/* PROFILE - Your Style with Avatar */}
-            {activeTab === "profile" && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <Card className="bg-card/50 backdrop-blur-xl shadow-2xl border-border/50">
-                  <CardContent className="p-8">
-                    <h3 className="text-3xl font-bold mb-8">Update Profile</h3>
-                    
-                    {/* Avatar Section */}
-                    <div className="py-7 mb-4 gap-3 flex flex-col items-center">
-                      <div className="w-32 h-32 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center overflow-hidden shadow-2xl border-4 border-border/50">
-                        {profile.profile_photo ? (
-                          <img
-                            src={profile.profile_photo}
-                            alt="Avatar"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Users className="h-16 w-16 text-slate-400" />
-                        )}
-                      </div>
-                      <Label
-                        htmlFor="avatar-upload"
-                        className="cursor-pointer flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors bg-muted/50 px-4 py-2 rounded-xl"
-                      >
-                        <Upload size={16} />
-                        Change Avatar
-                      </Label>
-                      <input
-                        id="avatar-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="flex flex-col gap-3">
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Full Name
-                        </label>
-                        <Input
-                          placeholder="Full Name"
-                          value={profile.full_name || ""}
-                          onChange={(e) =>
-                            updateProfile("full_name", e.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Email
-                        </label>
-                        <Input
-                          type="email"
-                          disabled={true}
-                          placeholder="Email"
-                          value={profile.email || ""}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Phone Number
-                        </label>
-                        <Input
-                          disabled={true}
-                          placeholder="Phone"
-                          value={profile.phone?.replace("+91", "") || ""}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Current Location
-                        </label>
-                        <Input
-                          placeholder="Current Location"
-                          value={profile.current_location || ""}
-                          onChange={(e) =>
-                            updateProfile("current_location", e.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Role
-                        </label>
-                        <Select
-                          value={profile.role || ""}
-                          onValueChange={(v) => updateProfile("role", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="renter">
-                              Student/Renter
-                            </SelectItem>
-                            <SelectItem value="owner">
-                              Property Owner
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <Card className="border-border/60 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white"><Shield className="h-5 w-5" /></div>
+                      <div>
+                        <h3 className="font-semibold">Plan Status</h3>
+                        <p className="text-sm text-muted-foreground">Subscription and visibility controls</p>
                       </div>
                     </div>
-                    <Textarea
-                      className="mt-8 h-32"
-                      placeholder="About me (visible to matches)"
-                      value={profile.bio || ""}
-                      onChange={(e) => updateProfile("bio", e.target.value)}
-                    />
-                    <Button className="mt-6 w-full h-14 rounded-xl bg-gradient-to-r from-primary to-primary/90 text-lg">
-                      <Check className="h-5 w-5 mr-2" />
-                      Save Changes
+                    {profile.subscription_status === "active" ? <Badge className="bg-emerald-600 text-white">Active - Featured Owner</Badge> : <Badge variant="destructive">Inactive - Basic Plan</Badge>}
+                    {profile.verified_landlord && <Badge className="ml-2 bg-blue-600 text-white">Verified Landlord</Badge>}
+                    <p className="mt-3 text-sm text-muted-foreground">{profile.subscription_status === "active" ? "Priority placement is enabled." : "Upgrade to boost listing visibility and lead conversion."}</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">Plan price: Rs {OWNER_PLAN_PRICE_INR}</p>
+                    <Button className="mt-4 h-10 rounded-lg" onClick={handleUpgradePlan} disabled={upgradingPlan}>
+                      {upgradingPlan
+                        ? "Processing..."
+                        : profile.subscription_status === "active"
+                          ? "Manage Subscription"
+                          : `Upgrade Plan - Rs ${OWNER_PLAN_PRICE_INR}`}
                     </Button>
                   </CardContent>
                 </Card>
-              </motion.div>
-            )}
 
-            {/* PROPERTIES (Owner Only) - NEW properties table */}
-            {activeTab === "rooms" && profile.role === "owner" && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-8"
-              >
-                {/* Add Property Form - FULL properties table */}
-
-                 <AddProperty >
-                  <Card className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border-blue-500/30 backdrop-blur-xl hover:bg- hover:shadow-2xl transition-all cursor-pointer :hover:bg-emerald-400/30 border-emerald-400/50">
-                    <CardContent className="  flex items-center justify-center">
-                      <h3 className="text-3xl text-blue-300 h-full text-center flex-col font-bold mb-8 flex items-center  gap-3">
-                        <Plus className="h-8 w-8" />
-                        Add New Property
-                      </h3>
-                     </CardContent>
-                  </Card>
-
-
-                </AddProperty>
-
-               
-
-                {/* Properties Grid */}
-                <Card className="bg-card/50 backdrop-blur-xl shadow-2xl border-border/50">
-                  <CardHeader>
-                    <CardTitle className="text-2xl">
-                      Your Active Properties ({properties.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {properties.slice(0, 6).map((property: Property) => (
-                        <Card key={property.id} className="bg-card/30 backdrop-blur-xl hover:shadow-xl transition-all border-border/30">
-                          <div className="h-54 overflow-hidden rounded-t-xl flex items-end ">
-                            <img
-                                src={property.images?.[0] || "/placeholder.png"}
-                                alt={property.title}
-                                className="size-full object-cover "
-                              />
-                          </div>
-                          <CardContent className="p-6">
-                            <Badge className=" bg-primary/90 backdrop-blur-sm mb-2">
-                              {property.available ? "Available" : "Booked"}
-                            </Badge>
-                            <h4 className="font-bold text-xl mb-3 line-clamp-1">{property.title}</h4>
-                            <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
-                              <MapPin className="h-4 w-4" />
-                              {property.address}
-                            </div>
-                            <div className="text-2xl font-black text-primary mb-4">₹{property.rent}</div>
-                            <div className="text-xs text-muted-foreground mb-6">
-                              {property.area} • {property.capacity} • {property.gender}
-                            </div>
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl">
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </Button>
-                              <Button size="sm" className="h-11 flex-1 rounded-xl bg-primary/90">
-                                View Stats
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                <Card className="border-border/60 shadow-sm">
+                  <CardContent className="p-6">
+                    <h3 className="mb-4 font-semibold">Quick Actions</h3>
+                    <div className="space-y-3">
+                      <AddProperty>
+                        <Button variant="outline" className="h-11 w-full justify-start rounded-lg"><Plus className="mr-2 h-4 w-4" />Add New Property</Button>
+                      </AddProperty>
+                      <Button variant="outline" className="h-11 w-full justify-start rounded-lg" onClick={() => setActiveTab("rooms")}><Bed className="mr-2 h-4 w-4" />Manage Properties</Button>
+                      <Button variant="outline" className="h-11 w-full justify-start rounded-lg" onClick={() => setActiveTab("analytics")}><BarChart3 className="mr-2 h-4 w-4" />Open Analytics</Button>
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
-            )}
-          </div>
-        </div>
-      </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === "profile" && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader><CardTitle>Update Profile</CardTitle></CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Full Name</p><Input value={profile.full_name || ""} onChange={(e) => updateProfile("full_name", e.target.value)} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Email</p><Input disabled value={profile.email || ""} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Phone</p><Input disabled value={profile.phone?.replace("+91", "") || ""} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Current Location</p><Input value={profile.current_location || ""} onChange={(e) => updateProfile("current_location", e.target.value)} /></div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">Role</p>
+                      <Select value={profile.role || ""} onValueChange={(v) => updateProfile("role", v)}>
+                        <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="renter">Student/Renter</SelectItem>
+                          <SelectItem value="owner">Property Owner</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Bio</p>
+                    <Textarea className="min-h-[120px]" value={profile.bio || ""} onChange={(e) => updateProfile("bio", e.target.value)} />
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "rooms" && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <AddProperty>
+                <Card className="cursor-pointer border-emerald-500/30 bg-emerald-500/10 shadow-sm transition hover:border-emerald-500/50">
+                  <CardContent className="flex h-24 items-center justify-center gap-2 text-emerald-700">
+                    <Plus className="h-5 w-5" />
+                    <span className="font-medium">Add New Property</span>
+                  </CardContent>
+                </Card>
+              </AddProperty>
+
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Your Properties ({properties.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {properties.map((property) => (
+                      <Card key={property.id} className="overflow-hidden border-border/60 shadow-sm">
+                        <div className="h-40 bg-muted">
+                          <img src={property.images?.[0] || "/placeholder.png"} alt={property.title} className="h-full w-full object-cover" />
+                        </div>
+                        <CardContent className="p-4">
+                          <div className="mb-2 flex items-center justify-between">
+                            <Badge variant={property.available ? "secondary" : "destructive"}>{property.available ? "Available" : "Booked"}</Badge>
+                            <span className="text-sm font-semibold text-primary">Rs {property.rent}</span>
+                          </div>
+                          <h4 className="line-clamp-1 font-semibold">{property.title}</h4>
+                          <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3.5 w-3.5" />{property.address}</p>
+                          <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{property.views}</span>
+                            <span className="inline-flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" />{property.inquiries}</span>
+                          </div>
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-9 rounded-lg"
+                              onClick={() => setEditingProperty(toEditDraft(property))}
+                            >
+                              <Edit className="mr-1.5 h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-9 rounded-lg"
+                              onClick={() => handleToggleAvailability(property)}
+                              disabled={actionPropertyId === property.id}
+                            >
+                              {property.available ? "Mark Booked" : "Mark Available"}
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button type="button" variant="destructive" className="col-span-2 h-9 rounded-lg">
+                                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                  Delete Property
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete this property?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. The listing will be removed from all users.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    variant="destructive"
+                                    onClick={() => handleDeleteProperty(property.id)}
+                                  >
+                                    Confirm Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "analytics" && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Top Performing Listings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {topProperties.length === 0 && <p className="text-sm text-muted-foreground">No listings yet.</p>}
+                  {topProperties.map((property, index) => (
+                    <div key={property.id} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+                      <div>
+                        <p className="font-medium">#{index + 1} {property.title}</p>
+                        <p className="text-xs text-muted-foreground">{property.area || "Dharamshala"}</p>
+                      </div>
+                      <div className="text-right flex gap-3 text-sm">
+                        <p className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{property.views}</p>
+                        <p className="inline-flex items-center gap-1 text-muted-foreground"><MessageSquare className="h-3.5 w-3.5" />{property.inquiries}</p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Response Health</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg border border-border/60 p-4">
+                    <p className="text-xs text-muted-foreground">Lead to View Ratio</p>
+                    <p className="mt-1 text-2xl font-semibold">{totalViews > 0 ? Math.round((totalInquiries / totalViews) * 100) : 0}%</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-4">
+                    <p className="text-xs text-muted-foreground">Average Inquiry per Listing</p>
+                    <p className="mt-1 text-2xl font-semibold">{properties.length ? (totalInquiries / properties.length).toFixed(1) : "0.0"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-4">
+                    <p className="text-xs text-muted-foreground">Last Updated</p>
+                    <p className="mt-1 inline-flex items-center gap-1 text-2xl font-semibold"><Clock3 className="h-4 w-4" />Today</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {activeTab === "settings" && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Account Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-border/60 p-4">
+                    <p className="font-medium">Profile visibility</p>
+                    <p className="text-sm text-muted-foreground">Control what renters can see on public listing pages.</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-4">
+                    <p className="font-medium">Notification preferences</p>
+                    <p className="text-sm text-muted-foreground">Email and WhatsApp lead alerts (coming soon).</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 p-4">
+                    <p className="font-medium">Team access</p>
+                    <p className="text-sm text-muted-foreground">Invite co-hosts or staff to manage listings (coming soon).</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </section>
+      </main>
+
+      <Dialog open={!!editingProperty} onOpenChange={(open) => !open && setEditingProperty(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Property</DialogTitle>
+            <DialogDescription>
+              Update listing details, status, and pricing.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingProperty && (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <p className="text-sm text-muted-foreground">Title</p>
+                <Input
+                  value={editingProperty.title}
+                  onChange={(e) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, title: e.target.value } : current,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <p className="text-sm text-muted-foreground">Address</p>
+                <Input
+                  value={editingProperty.address}
+                  onChange={(e) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, address: e.target.value } : current,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Rent (Rs)</p>
+                <Input
+                  type="number"
+                  min={2000}
+                  max={15000}
+                  value={editingProperty.rent}
+                  onChange={(e) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, rent: Number(e.target.value) || 0 } : current,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Deposit (Rs)</p>
+                <Input
+                  type="number"
+                  min={0}
+                  max={45000}
+                  value={editingProperty.deposit}
+                  onChange={(e) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, deposit: Number(e.target.value) || 0 } : current,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Area</p>
+                <Select
+                  value={editingProperty.area ?? "none"}
+                  onValueChange={(value) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, area: value === "none" ? null : value } : current,
+                    )
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Select area" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not selected</SelectItem>
+                    <SelectItem value="McLeod Ganj">McLeod Ganj</SelectItem>
+                    <SelectItem value="Shyam Nagar">Shyam Nagar</SelectItem>
+                    <SelectItem value="Ram Nagar">Ram Nagar</SelectItem>
+                    <SelectItem value="Sakoh">Sakoh</SelectItem>
+                    <SelectItem value="Education Board">Education Board</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Capacity</p>
+                <Select
+                  value={editingProperty.capacity ?? "none"}
+                  onValueChange={(value) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, capacity: value === "none" ? null : value } : current,
+                    )
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Select capacity" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not selected</SelectItem>
+                    <SelectItem value="single">Single</SelectItem>
+                    <SelectItem value="duo">Duo</SelectItem>
+                    <SelectItem value="triple">Triple</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Gender</p>
+                <Select
+                  value={editingProperty.gender ?? "none"}
+                  onValueChange={(value) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, gender: value === "none" ? null : value } : current,
+                    )
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Select gender preference" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not selected</SelectItem>
+                    <SelectItem value="girls">Girls</SelectItem>
+                    <SelectItem value="boys">Boys</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/60 p-3">
+                <p className="text-sm font-medium">Availability</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Available for inquiries</span>
+                  <Switch
+                    checked={editingProperty.available}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, available: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/60 p-3">
+                <p className="text-sm font-medium">Amenities</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Furnished</span>
+                  <Switch
+                    checked={editingProperty.furnished}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, furnished: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Near college</span>
+                  <Switch
+                    checked={editingProperty.near_college}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, near_college: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingProperty(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePropertyEdit} disabled={savingEdit}>
+              {savingEdit ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

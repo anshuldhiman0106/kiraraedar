@@ -27,13 +27,18 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { CircleMarker, MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 
 type Props = React.PropsWithChildren;
 
 const AddProperty = ({ children }: Props) => {
+  const DEFAULT_MAP_CENTER: [number, number] = [32.219, 76.3234];
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formStep, setFormStep] = useState<1 | 2>(1);
 
   /* ================= PROPERTY STATE ================= */
   const [newProperty, setNewProperty] = useState({
@@ -47,9 +52,83 @@ const AddProperty = ({ children }: Props) => {
     available: true,
     address: "",
     area: null as string | null,
+    lat: null as number | null,
+    lng: null as number | null,
     near_college: false,
     images: [] as File[],
   });
+
+  const LocationPicker = ({
+    lat,
+    lng,
+    onPick,
+  }: {
+    lat: number | null;
+    lng: number | null;
+    onPick: (lat: number, lng: number) => void;
+  }) => {
+    const center: [number, number] = lat !== null && lng !== null ? [lat, lng] : DEFAULT_MAP_CENTER;
+
+    const MapResizer = () => {
+      const map = useMap();
+
+      useEffect(() => {
+        const invalidate = () => map.invalidateSize();
+        const t1 = window.setTimeout(invalidate, 30);
+        const t2 = window.setTimeout(invalidate, 180);
+        const t3 = window.setTimeout(invalidate, 420);
+        window.addEventListener("resize", invalidate);
+
+        return () => {
+          window.clearTimeout(t1);
+          window.clearTimeout(t2);
+          window.clearTimeout(t3);
+          window.removeEventListener("resize", invalidate);
+        };
+      }, [map]);
+
+      return null;
+    };
+
+    const MapClickHandler = () => {
+      useMapEvents({
+        click(event) {
+          onPick(event.latlng.lat, event.latlng.lng);
+        },
+      });
+      return null;
+    };
+
+    return (
+      <div className="overflow-hidden rounded-xl border border-border/60 h-[360px]">
+        <MapContainer
+          center={center}
+          zoom={13}
+          className="w-full"
+          style={{ height: "360px", width: "100%" }}
+        >
+          <MapResizer />
+          <MapClickHandler />
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {lat !== null && lng !== null && (
+            <CircleMarker
+              center={[lat, lng]}
+              radius={8}
+              pathOptions={{
+                color: "#065f46",
+                fillColor: "#10b981",
+                fillOpacity: 0.9,
+                weight: 2,
+              }}
+            />
+          )}
+        </MapContainer>
+      </div>
+    );
+  };
 
   /* ================= LOAD AUTH USER ================= */
   useEffect(() => {
@@ -112,6 +191,11 @@ const AddProperty = ({ children }: Props) => {
       return;
     }
 
+    if (newProperty.lat === null || newProperty.lng === null || !locationConfirmed) {
+      toast.error("Select location on map and click 'Use this location'");
+      return;
+    }
+
     if(!newProperty.images || newProperty.images.length === 0) {
       toast.error("Please upload at least one image");
       return;
@@ -155,6 +239,8 @@ const AddProperty = ({ children }: Props) => {
         available: newProperty.available,
         address: newProperty.address.trim(),
         area: newProperty.area,
+        lat: newProperty.lat,
+        lng: newProperty.lng,
         near_college: newProperty.near_college,
         images: imageUrls.length > 0 ? imageUrls : null,
         views: 0,
@@ -180,9 +266,14 @@ const AddProperty = ({ children }: Props) => {
         available: true,
         address: "",
         area: null,
+        lat: null,
+        lng: null,
         near_college: false,
         images: [],
       });
+      setLocationConfirmed(false);
+      setFormStep(1);
+      setDialogOpen(false);
 
       router.refresh();
     } catch (err) {
@@ -196,18 +287,32 @@ const AddProperty = ({ children }: Props) => {
   /* ================= UI ================= */
 
   return (
-    <Dialog>
-      <DialogTrigger className="w-full">{children}</DialogTrigger>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) {
+          setFormStep(1);
+        }
+      }}
+    >
+      <DialogTrigger asChild>{children}</DialogTrigger>
 
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b">
-          <DialogTitle>Add New Property</DialogTitle>
+          <DialogTitle>
+            {formStep === 1 ? "Add New Property" : "Select Property Location"}
+          </DialogTitle>
           <DialogDescription>
-            Fill in the complete property details.
+            {formStep === 1
+              ? "Step 1 of 2: Fill property details."
+              : "Step 2 of 2: Pick location on map and confirm it."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-10">
+          {formStep === 1 && (
+            <>
 
           {/* BASIC INFO */}
           <section className="space-y-6">
@@ -291,33 +396,9 @@ const AddProperty = ({ children }: Props) => {
                 setNewProperty({ ...newProperty, address: e.target.value })
               }
             />
-
-            {/* <div className="grid grid-cols-2 gap-6">
-              <Input
-                type="number"
-                step="0.00000001"
-                placeholder="Latitude"
-                value={newProperty.lat ?? ""}
-                onChange={(e) =>
-                  setNewProperty({
-                    ...newProperty,
-                    lat: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-              />
-              <Input
-                type="number"
-                step="0.00000001"
-                placeholder="Longitude"
-                value={newProperty.lng ?? ""}
-                onChange={(e) =>
-                  setNewProperty({
-                    ...newProperty,
-                    lng: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-              />
-            </div> */}
+            <p className="text-xs text-muted-foreground">
+              Exact pin location is selected in the next step.
+            </p>
           </section>
 
           <Separator />
@@ -384,17 +465,92 @@ const AddProperty = ({ children }: Props) => {
               </label>
             </div>
           </section>
+            </>
+          )}
+
+          {formStep === 2 && (
+            <section className="space-y-4">
+              <Label>Tap on map to choose exact location</Label>
+              <LocationPicker
+                lat={newProperty.lat}
+                lng={newProperty.lng}
+                onPick={(lat, lng) => {
+                  setNewProperty({
+                    ...newProperty,
+                    lat: Number(lat.toFixed(7)),
+                    lng: Number(lng.toFixed(7)),
+                  });
+                  setLocationConfirmed(false);
+                }}
+              />
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (newProperty.lat === null || newProperty.lng === null) {
+                      toast.error("Tap on map to select location first");
+                      return;
+                    }
+                    setLocationConfirmed(true);
+                    toast.success("Location selected");
+                  }}
+                >
+                  Use this location
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {locationConfirmed
+                    ? "Location confirmed. You can publish now."
+                    : "After selecting pin, click Use this location."}
+                </p>
+              </div>
+            </section>
+          )}
 
         </div>
 
         <div className="p-6 border-t">
-          <Button
-            onClick={addProperty}
-            disabled={uploading}
-            className="w-full h-14 rounded-xl"
-          >
-            {uploading ? "Publishing..." : "Publish Property"}
-          </Button>
+          {formStep === 1 ? (
+            <Button
+              type="button"
+              onClick={() => {
+                if (!newProperty.title.trim()) {
+                  toast.error("Title is required");
+                  return;
+                }
+                if (!newProperty.area) {
+                  toast.error("Please select an area");
+                  return;
+                }
+                if (!newProperty.address.trim()) {
+                  toast.error("Address is required");
+                  return;
+                }
+                setFormStep(2);
+              }}
+              className="w-full h-14 rounded-xl"
+            >
+              Continue to Location
+            </Button>
+          ) : (
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFormStep(1)}
+                className="h-14 rounded-xl"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={addProperty}
+                disabled={uploading || !locationConfirmed}
+                className="flex-1 h-14 rounded-xl"
+              >
+                {uploading ? "Publishing..." : "Publish Property"}
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

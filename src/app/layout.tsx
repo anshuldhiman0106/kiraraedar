@@ -1,8 +1,20 @@
 
 import { ThemeProvider } from "@/components/theme-provider"
+import type { Metadata } from "next"
 import "./globals.css";
 import { Toaster } from "sonner"
 
+export const metadata: Metadata = {
+  title: {
+    default: "Home",
+    template: "%s | Kiraedar",
+  },
+  icons: {
+    icon: "/logo.svg",
+    shortcut: "/logo.svg",
+    apple: "/logo.svg",
+  },
+}
 
 export default function RootLayout({
   children,
@@ -11,6 +23,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://api.maptiler.com" />
+        <link rel="dns-prefetch" href="https://api.maptiler.com" />
+        <link rel="preconnect" href="https://tile.openstreetmap.org" />
+        <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+      </head>
       <body>
         
         <ThemeProvider

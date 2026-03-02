@@ -148,7 +148,7 @@ const handleGoogleSignIn = async () => {
         <CardHeader>
           {/* logo */}
           <div className='w-full flex justify-center'>
-          <div className="mb-10 flex items-center gap-2 text-white">
+          <div className="mb-10 flex items-center gap-2 ">
             <img src="/logo.svg" alt="Kiraraedar Logo" className="h-12 aspect-square" />
             <span className="text-xl font-semibold tracking-wide">
               KIRAEDAR

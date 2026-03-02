@@ -24,7 +24,7 @@ export function AuthCta({
           <h1 className="text-xl font-semibold">{title}</h1>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button asChild className="w-full">
+        <Button  onClick={() => localStorage.clear()} asChild className="w-full">
           <Link href={actionHref}>{actionLabel}</Link>
         </Button>
       </Card>

@@ -21,6 +21,9 @@ import {
   UserPlus,
   Upload,
   CheckCircle,
+  Sparkles,
+  ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -145,28 +148,66 @@ export default function ProfilePage() {
   /* ---------------- AVATAR UPLOAD ---------------- */
   const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
 
     setUploading(true);
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${profile.id}.${fileExt}`;
-    const filePath = `avatars/${fileName}`;
 
-    const { error } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, file, { upsert: true });
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    if (!error) {
-      const { data } = supabase.storage
+      if (authError || !user) {
+        toast.error("Please login again");
+        return;
+      }
+
+      const fileExt =
+        (file.name.split(".").pop() || "").toLowerCase() ||
+        file.type.split("/")[1] ||
+        "jpg";
+
+      // Keep uid as first folder to satisfy common Supabase storage policies.
+      const filePath = `${user.id}/avatar-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .getPublicUrl(filePath);
+        .upload(filePath, file, {
+          upsert: true,
+          cacheControl: "3600",
+          contentType: file.type,
+        });
 
-      await updateProfile("profile_photo", data.publicUrl);
+      if (uploadError) {
+        toast.error("Upload failed");
+        return;
+      }
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      const photoUrl = `${data.publicUrl}?v=${Date.now()}`;
+
+      await updateProfile("profile_photo", photoUrl);
       toast.success("Avatar uploaded!");
-    } else {
+    } catch (error) {
+      console.error(error);
       toast.error("Upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
-    setUploading(false);
   };
 
   /* ---------------- VALIDATION ---------------- */
@@ -196,6 +237,16 @@ export default function ProfilePage() {
     return Math.round((fields.filter(Boolean).length / fields.length) * 100);
   };
 
+  const completion = completionPercentage();
+  const roleLabel =
+    profile.role === "owner"
+      ? "Owner"
+      : profile.role === "roommate_seeker"
+        ? "Roommate Seeker"
+        : profile.role === "renter"
+          ? "Renter"
+          : "Not selected";
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -214,42 +265,69 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/40 p-6">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 p-4 sm:p-6">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-lg mx-auto space-y-6"
+        className="mx-auto w-full max-w-4xl space-y-6"
       >
-        
-         <div className="flex justify-center">
-          <div className="flex items-center gap-2">
-            <img
-              src="/logo.svg"
-              alt="Kiraraedar Logo"
-              className="h-12 aspect-square"
-            />
-            <span className="text-xl font-semibold tracking-wide">
-              KIRAEDAR
-            </span>
-          </div>
-        </div>
-        
-
-        {/* PROFILE STRENGTH */}
-        <Card>
-          <CardContent className="pt-6 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Profile strength</span>
-              <Badge>{completionPercentage()}%</Badge>
+        <Card className="overflow-hidden border-border/60 shadow-sm">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-emerald-500/15 via-blue-500/15 to-sky-500/10 px-5 py-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-14 w-14 border-2 border-background shadow-sm">
+                    <AvatarImage src={profile.profile_photo} />
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-lg">
+                      {profile.full_name?.[0]?.toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-semibold">
+                      {profile.full_name || "Complete your profile"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {profile.current_location || "Dharamshala, Himachal Pradesh"}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Badge variant="secondary" className="rounded-full">
+                        <UserRound className="mr-1 h-3.5 w-3.5" />
+                        {roleLabel}
+                      </Badge>
+                      {profile.phone_verified ? (
+                        <Badge className="rounded-full bg-emerald-600 text-white">
+                          <ShieldCheck className="mr-1 h-3.5 w-3.5" />
+                          Phone verified
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="rounded-full">
+                          Phone not verified
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 rounded-full bg-card/70 px-3 py-1.5 text-xs font-semibold">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  {completion}% complete
+                </div>
+              </div>
             </div>
-            <Progress value={completionPercentage()} />
+            <div className="px-5 py-4 sm:px-6">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Profile strength</span>
+                <span className="font-medium">{completion}%</span>
+              </div>
+              <Progress value={completion} />
+            </div>
           </CardContent>
         </Card>
 
         {/* AVATAR UPLOAD */}
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle>Profile Photo</CardTitle>
+            <CardDescription>Add a clear photo to build trust with owners.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col items-center space-y-4">
@@ -278,11 +356,11 @@ export default function ProfilePage() {
         </Card>
 
         {/* MAIN FORM */}
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle>Your details</CardTitle>
             <CardDescription>
-              Complete all fields to start searching
+              Complete all required fields to start searching rooms.
             </CardDescription>
           </CardHeader>
 
@@ -292,7 +370,7 @@ export default function ProfilePage() {
               <TabsContent value="basic" className="space-y-8">
                 {/* Basic Info Section */}
                 <div className="space-y-5">
-                  <h3 className="text-sm font-semibold text-muted-foreground">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                     Basic Information
                   </h3>
 
@@ -355,9 +433,14 @@ export default function ProfilePage() {
                       updateProfile("current_location", e.target.value)
                     }
                   />
+                  
 
                   {/* Preferred Areas 
-                   Combobox with multi-select and free input for preferred areas */}
+                  Combobox with multi-select and free input for preferred areas */}
+                  
+
+                  <Label className="px-2 mb-2">Preferred Areas</Label>
+                  
                   <Combobox
                     multiple
                     autoHighlight
@@ -449,13 +532,14 @@ export default function ProfilePage() {
                           <SelectContent>
                             <SelectGroup>
                               <SelectLabel>Branch</SelectLabel>
-                              <SelectItem value="CS">
-                                Computer Science
-                              </SelectItem>
                               <SelectItem value="BCA">BCA</SelectItem>
-                              <SelectItem value="BT">Biotech</SelectItem>
+                              <SelectItem value="BBA">BBA</SelectItem>
+                              <SelectItem value="BCom">BCom</SelectItem>
                               <SelectItem value="BA">BA</SelectItem>
-                              <SelectItem value="BSC">BSc</SelectItem>
+                              <SelectItem value="BSc">BSc</SelectItem>
+                              <SelectItem value="Biotechnology">Biotechnology</SelectItem>
+                              <SelectItem value="BTech">BTech</SelectItem>
+                              
                             </SelectGroup>
                           </SelectContent>
                         </Select>
@@ -611,10 +695,10 @@ export default function ProfilePage() {
                   toast.success(
                     "Profile completed! Redirecting to verify phone...",
                   );
-                  router.push(`${window.location.href.replace('#', '')}/verifyphone`);
+                  router.push("/profile/verifyphone");
                 })
               }
-              className="w-full"
+              className="h-12 w-full rounded-xl"
               disabled={!isComplete()}
             >
               {isComplete() ? (

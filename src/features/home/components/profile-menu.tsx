@@ -1,7 +1,9 @@
 "use client"
 
-import { Globe, Heart, LogOutIcon, MessageCircle, Moon, Sun, User, UserIcon } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Heart, LayoutDashboard, LogOutIcon, Moon, Sun, UserCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,38 +11,103 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { supabase } from "@/lib/supabase"
 
 type ProfileMenuProps = {
   isLightTheme: boolean
   onToggleTheme: () => void
+  onOpenFavorites: () => void
   onOpenDashboard: () => void
   onLogout: () => Promise<void>
 }
 
-export function HeaderActions({ isLightTheme, onToggleTheme, onOpenDashboard, onLogout }: ProfileMenuProps) {
+export function HeaderActions({ isLightTheme, onToggleTheme, onOpenFavorites, onOpenDashboard, onLogout }: ProfileMenuProps) {
+  const [displayName, setDisplayName] = useState("Guest User")
+  const [displayEmail, setDisplayEmail] = useState("")
+  const [profilePhoto, setProfilePhoto] = useState("")
+
+  const initials = useMemo(() => {
+    const text = displayName.trim()
+    if (!text) return "U"
+    return text
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("")
+  }, [displayName])
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setDisplayName("Guest User")
+        setDisplayEmail("")
+        setProfilePhoto("")
+        return
+      }
+
+      setDisplayEmail(user.email ?? "")
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, profile_photo")
+        .eq("id", user.id)
+        .single()
+
+      setDisplayName(profile?.full_name?.trim() || user.email?.split("@")[0] || "User")
+      setProfilePhoto(profile?.profile_photo || "")
+    }
+
+    void loadProfile()
+  }, [])
+
   return (
     <div className="flex items-center gap-3">
-      <Button variant="ghost" size="sm" className="h-10 w-10 rounded-full hover:bg-accent">
-        <Globe className="h-5 w-5 text-muted-foreground" />
-      </Button>
-      <Button variant="ghost" size="sm" className="h-10 w-10 rounded-full hover:bg-accent">
-        <MessageCircle className="h-5 w-5 text-muted-foreground" />
-      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-10 w-10 rounded-full hover:bg-accent">
-            <User className="h-5 w-5 text-muted-foreground" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 rounded-full border border-border/60 bg-card px-1.5 pr-2 hover:bg-accent"
+          >
+            <Avatar size="sm" className="size-7">
+              <AvatarImage src={profilePhoto} alt={displayName} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <span className="ml-2 hidden max-w-[130px] truncate text-sm font-medium md:inline">
+              {displayName}
+            </span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-72 min-w-72 rounded-xl border border-border/60 p-2">
+          <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-2.5 py-2">
+            <Avatar size="default">
+              <AvatarImage src={profilePhoto} alt={displayName} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{displayName}</p>
+              {displayEmail ? (
+                <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Manage your account</p>
+              )}
+            </div>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onOpenFavorites}>
             <Heart className="h-4 w-4 mr-2" />
             Favorites
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onOpenDashboard}>
-            <UserIcon className="h-4 w-4 mr-2" />
+            <LayoutDashboard className="h-4 w-4 mr-2" />
             Dashboard
           </DropdownMenuItem>
+          
           <DropdownMenuItem onClick={onToggleTheme}>
             {isLightTheme ? (
               <>
