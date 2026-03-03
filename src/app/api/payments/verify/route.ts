@@ -10,6 +10,18 @@ type VerifyPayload = {
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return NextResponse.json({ error: "Razorpay secret is not configured." }, { status: 500 })
+    }
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return NextResponse.json({ error: "Supabase auth environment variables are not configured." }, { status: 500 })
+    }
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured." }, { status: 500 })
+    }
+
     const authHeader = request.headers.get("authorization")
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
 

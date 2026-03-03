@@ -11,6 +11,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Razorpay keys are not configured." }, { status: 500 })
     }
 
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return NextResponse.json({ error: "Supabase auth environment variables are not configured." }, { status: 500 })
+    }
+
     if (process.env.RAZORPAY_KEY_SECRET === "your_razorpay_key_secret") {
       return NextResponse.json(
         { error: "RAZORPAY_KEY_SECRET is still placeholder. Set real Razorpay secret key." },
@@ -50,18 +54,22 @@ export async function POST(request: Request) {
       },
     })
 
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { error: paymentInsertError } = await adminClient.from("owner_plan_payments").insert({
-      user_id: user.id,
-      razorpay_order_id: order.id,
-      amount_paise: order.amount,
-      currency: order.currency,
-      plan_name: PLAN_NAME,
-      status: "created",
-    })
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY)
+      const { error: paymentInsertError } = await adminClient.from("owner_plan_payments").insert({
+        user_id: user.id,
+        razorpay_order_id: order.id,
+        amount_paise: order.amount,
+        currency: order.currency,
+        plan_name: PLAN_NAME,
+        status: "created",
+      })
 
-    if (paymentInsertError) {
-      console.error("Payment row insert error:", paymentInsertError)
+      if (paymentInsertError) {
+        console.error("Payment row insert error:", paymentInsertError)
+      }
+    } else {
+      console.warn("SUPABASE_SERVICE_ROLE_KEY missing. Skipping payment row insert.")
     }
 
     return NextResponse.json({
