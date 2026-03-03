@@ -72,13 +72,13 @@ export function HeaderActions({ isLightTheme, onToggleTheme, onOpenFavorites, on
           <Button
             variant="ghost"
             size="sm"
-            className="h-10 rounded-full border border-border/60 bg-card px-1.5 pr-2 hover:bg-accent"
+            className="h-11 rounded-full border border-border/60 bg-card px-2 pr-3 hover:bg-accent"
           >
             <Avatar size="sm" className="size-7">
               <AvatarImage src={profilePhoto} alt={displayName} />
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
-            <span className="ml-2 hidden max-w-[130px] truncate text-sm font-medium md:inline">
+            <span className="ml-2 hidden max-w-[140px] truncate text-base font-medium md:inline">
               {displayName}
             </span>
           </Button>
@@ -90,11 +90,11 @@ export function HeaderActions({ isLightTheme, onToggleTheme, onOpenFavorites, on
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{displayName}</p>
+              <p className="truncate text-base font-semibold">{displayName}</p>
               {displayEmail ? (
-                <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
+                <p className="truncate text-sm text-muted-foreground">{displayEmail}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">Manage your account</p>
+                <p className="text-sm text-muted-foreground">Manage your account</p>
               )}
             </div>
           </div>

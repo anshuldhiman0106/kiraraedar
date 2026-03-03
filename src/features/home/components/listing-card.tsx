@@ -38,7 +38,7 @@ export function ListingCard({ property, index, isFavorite, onToggleFavorite }: L
     >
       <Card
         onClick={handleCardClick}
-        className="relative w-full aspect-square overflow-hidden hover:shadow-2xl hover:shadow-neutral-800/50 hover:-translate-y-2 transition-all duration-500 border-0 bg-card shadow-lg border-border/50 cursor-pointer p-0"
+        className="relative aspect-square w-full cursor-pointer overflow-hidden border-0 border-border/50 bg-card p-0 shadow-lg transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-neutral-800/50"
       >
         <PropertyCarousel isNewProperty={isNewProperty} images={property.images || []} />
 
@@ -62,7 +62,7 @@ export function ListingCard({ property, index, isFavorite, onToggleFavorite }: L
         </Button>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4 pt-14 opacity-100 group-hover:opacity-0 transition-opacity duration-300 text-white bg-gradient-to-t from-black/95 via-black/70 to-transparent">
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2 rounded-full bg-black/45 px-2.5 py-1">
               {property.owner?.profile_photo ? (
                 <img
@@ -75,37 +75,37 @@ export function ListingCard({ property, index, isFavorite, onToggleFavorite }: L
                   {(property.owner?.full_name?.[0] || "O").toUpperCase()}
                 </div>
               )}
-              <span className="text-xs font-medium line-clamp-1">{property.owner?.full_name || "Owner"}</span>
+              <span className="line-clamp-1 text-sm font-medium">{property.owner?.full_name || "Owner"}</span>
             </div>
             {property.owner?.verified_landlord && (
-              <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/80 px-2 py-1 text-[10px] font-semibold">
-                <ShieldCheck className="h-3 w-3" />
+              <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/80 px-2.5 py-1 text-xs font-semibold">
+                <ShieldCheck className="h-3.5 w-3.5" />
                 Verified
               </div>
             )}
           </div>
 
           <div className="mb-2 flex flex-wrap gap-1.5">
-            <Badge variant="secondary" className="text-xs px-2 py-1 bg-white/20 text-white border-white/30">
+            <Badge variant="secondary" className="border-white/30 bg-white/20 px-2.5 py-1 text-xs text-white">
               {property.capacity?.toUpperCase()} - {property.gender?.toUpperCase()}
             </Badge>
             {property.furnished && (
-              <Badge variant="secondary" className="text-xs px-2 py-1 bg-emerald-500/70 text-white border-emerald-300/50">
+              <Badge variant="secondary" className="border-emerald-300/50 bg-emerald-500/70 px-2.5 py-1 text-xs text-white">
                 Furnished
               </Badge>
             )}
           </div>
 
-          <CardTitle className="text-lg font-bold leading-tight line-clamp-1 text-white">{property.title}</CardTitle>
+          <CardTitle className="line-clamp-1 text-xl leading-tight font-bold text-white">{property.title}</CardTitle>
 
-          <div className="mt-1.5 flex items-center gap-2 text-xs text-white/90">
+          <div className="mt-1.5 flex items-center gap-2 text-sm text-white/90">
             <MapPin className="h-3.5 w-3.5" />
             <span className="line-clamp-1">
               {property.area || "Dharamshala"} - {property.address.split(",")[0]}
             </span>
           </div>
 
-          <div className="mt-2 flex items-center justify-between text-xs text-white/90">
+          <div className="mt-2.5 flex items-center justify-between text-sm text-white/90">
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1">
                 <Bed className="h-3.5 w-3.5" />
@@ -117,7 +117,7 @@ export function ListingCard({ property, index, isFavorite, onToggleFavorite }: L
               </span>
             </div>
             <div className="text-right">
-              <div className="text-base font-black text-white">Rs {property.rent}</div>
+              <div className="text-xl font-black text-white">Rs {property.rent}</div>
               <div>month</div>
             </div>
           </div>

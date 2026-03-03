@@ -549,12 +549,18 @@ export default function UniversalDashboard() {
               <Button variant={activeTab === "profile" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("profile")}>
                 <Edit className="mr-2 h-4 w-4" /> Profile
               </Button>
+              {
+                profile.role === "owner" && (<>
               <Button variant={activeTab === "rooms" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("rooms")}>
                 <Bed className="mr-2 h-4 w-4" /> Properties
               </Button>
+
               <Button variant={activeTab === "analytics" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("analytics")}>
                 <TrendingUp className="mr-2 h-4 w-4" /> Analytics
               </Button>
+                </>
+                )
+              }
               <Button variant={activeTab === "settings" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("settings")}>
                 <Settings className="mr-2 h-4 w-4" /> Settings
               </Button>
@@ -580,6 +586,8 @@ export default function UniversalDashboard() {
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                
+                {profile.role === "owner" && (
                 <Card className="border-border/60 shadow-sm">
                   <CardContent className="p-6">
                     <div className="mb-4 flex items-center gap-3">
@@ -602,6 +610,9 @@ export default function UniversalDashboard() {
                     </Button>
                   </CardContent>
                 </Card>
+                  
+                )}
+                
 
                 <Card className="border-border/60 shadow-sm">
                   <CardContent className="p-6">

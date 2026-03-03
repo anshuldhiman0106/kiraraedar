@@ -8,20 +8,20 @@ const currentYear = new Date().getFullYear()
 export function SiteFooter() {
   return (
     <footer className="border-t border-border/60 bg-card/60">
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 py-10 sm:px-6 lg:grid-cols-3 lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 px-4 py-12 sm:px-6 lg:grid-cols-3 lg:px-8">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Kiraedar logo" className="h-7 w-7" />
-            <p className="text-lg font-semibold">Kiraedar</p>
+            <img src="/logo.svg" alt="Kiraedar logo" className="h-8 w-8" />
+            <p className="text-2xl font-semibold">Kiraedar</p>
           </div>
-          <p className="max-w-sm text-sm text-muted-foreground">
+          <p className="max-w-sm text-base text-muted-foreground">
             Verified student rooms in Dharamshala. Compare listings and contact owners directly.
           </p>
         </div>
 
         <div className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Quick Links</p>
-          <div className="flex flex-col gap-2 text-sm">
+          <div className="flex flex-col gap-2 text-base">
             <Link href="/" className="hover:underline">
               Home
             </Link>
@@ -36,7 +36,7 @@ export function SiteFooter() {
 
         <div className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
-          <div className="space-y-2 space-x-3 text-sm">
+          <div className="space-y-2 space-x-3 text-base">
             <a href="mailto:kiraedarr@gmail.com" className="inline-flex items-center gap-2 hover:underline">
               <IconMail className="h-4 w-4" />
               kiraedarr@gmail.com
@@ -58,10 +58,9 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="border-t border-border/60 px-4 py-4 text-center text-xs text-muted-foreground sm:px-6 lg:px-8">
-        © {currentYear} Kiraedar. All rights reserved.
+      <div className="border-t border-border/60 px-4 py-4 text-center text-sm text-muted-foreground sm:px-6 lg:px-8">
+        (c) {currentYear} Kiraedar. All rights reserved.
       </div>
     </footer>
   )
 }
-

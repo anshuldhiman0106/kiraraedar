@@ -357,16 +357,16 @@ export default function HomePage() {
   )
 
   return (
-    <div className="min-h-screen ">
-      <header className="sticky bg-card/95 top-0 z-50 backdrop-blur-xl shadow-lg border-b border-border/50">
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-card/95 shadow-lg backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 lg:h-20">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-2xl flex items-center justify-center shadow-lg">
-                <img src="logo.svg" alt="Kiraedar Logo" className="w-10 h-10" />
+          <div className="flex h-18 items-center justify-between lg:h-22">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl shadow-lg">
+                <img src="logo.svg" alt="Kiraedar Logo" className="h-10 w-10" />
               </div>
-              <div className="px-1  lg:block">
-                <h1 className="text-2xl font-semibold  bg-clip-text">
+              <div className="px-1 lg:block">
+                <h1 className="bg-clip-text text-3xl font-bold tracking-tight">
                   Kiraedar
                 </h1>
               </div>
@@ -404,12 +404,12 @@ export default function HomePage() {
         </AnimatePresence>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-2 py-12 lg:py-20">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-2 lg:py-20">
         <div className="text-center mb-20 lg:mb-32">
-          <h1 className="text-4xl lg:text-6xl font-black bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 dark:from-white dark:via-slate-200 dark:to-slate-300 bg-clip-text text-transparent mb-6 leading-tight drop-shadow-2xl">
+          <h1 className="mb-6 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-5xl leading-tight font-black text-transparent drop-shadow-2xl dark:from-white dark:via-slate-200 dark:to-slate-300 lg:text-7xl">
             Find your perfect room
           </h1>
-          <p className="text-xl lg:text-2xl text-muted-foreground max-w-2xl mx-auto mb-12 lg:mb-16 leading-relaxed">
+          <p className="mx-auto mb-12 max-w-3xl text-2xl leading-relaxed text-muted-foreground lg:mb-16 lg:text-3xl">
             Discover {displayedRoomsCount} matching rooms in Dharamshala at unbeatable prices
           </p>
         </div>
@@ -417,12 +417,12 @@ export default function HomePage() {
         <div className="mb-10 lg:mb-20 space-y-4 lg:space-y-0">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row gap-2 sm:flex-row sm:items-center sm:gap-4">
-              <h2 className="text-lg sm:text-xl lg:text-3xl font-bold text-foreground">{displayedRoomsCount} rooms</h2>
+              <h2 className="text-2xl font-bold text-foreground sm:text-3xl lg:text-4xl">{displayedRoomsCount} rooms</h2>
               <Separator orientation="vertical" className="hidden sm:block h-6 bg-border" />
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-base text-muted-foreground">
                 <span className="hidden sm:inline">Sort by:</span>
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="h-10 rounded-xl border-border/50 bg-card px-3">
+                  <SelectTrigger className="h-11 rounded-xl border-border/50 bg-card px-3">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border/50">
@@ -438,14 +438,14 @@ export default function HomePage() {
               <Button
                 variant="outline"
                 onClick={() => setMapOpen(true)}
-                className="flex-1 lg:flex-none h-11 px-4 lg:px-6 rounded-xl border-border/50 bg-card"
+                className="h-12 flex-1 rounded-xl border-border/50 bg-card px-5 text-base lg:flex-none lg:px-7"
               >
                 Map
               </Button>
               <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" className="flex-1 lg:flex-none h-11 px-4 lg:px-6 rounded-xl border-border/50 bg-card">
-                    <Filter className="h-4 w-4 mr-2" />
+                  <Button variant="outline" className="h-12 flex-1 rounded-xl border-border/50 bg-card px-5 text-base lg:flex-none lg:px-7">
+                    <Filter className="mr-2 h-4 w-4" />
                     Filters
                   </Button>
                 </SheetTrigger>
@@ -515,11 +515,11 @@ export default function HomePage() {
                     </div>
                   </div>
                   <SheetFooter className="flex-row gap-2">
-                    <Button type="button" variant="outline" onClick={resetFilters} className="flex-1">
+                    <Button type="button" variant="outline" onClick={resetFilters} className="h-12 flex-1 text-base">
                       Reset
                     </Button>
                     <SheetClose asChild>
-                      <Button type="button" className="flex-1">
+                      <Button type="button" className="h-12 flex-1 text-base">
                         Apply
                       </Button>
                     </SheetClose>
@@ -556,11 +556,11 @@ export default function HomePage() {
               />
             </div>
             <SheetFooter className="border-t border-border/50 p-2 sm:p-4">
-              <Button type="button" variant="outline" onClick={clearMapAreaSearch} className="w-full sm:w-auto">
+              <Button type="button" variant="outline" onClick={clearMapAreaSearch} className="w-full text-base sm:w-auto">
                 Clear Map Area
               </Button>
               <SheetClose asChild>
-                <Button type="button" variant="outline" className="w-full sm:w-auto">
+                <Button type="button" variant="outline" className="w-full text-base sm:w-auto">
                   Done
                 </Button>
               </SheetClose>
@@ -568,7 +568,7 @@ export default function HomePage() {
           </SheetContent>
         </Sheet>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 lg:gap-6">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5 lg:gap-7">
           {loading
             ? Array.from({ length: 12 }).map((_, i) => (
                 <Skeleton key={`skeleton-${i}`} className="aspect-square rounded-2xl bg-muted" />
@@ -584,18 +584,18 @@ export default function HomePage() {
               ))}
         </div>
 
-        <div className="text-center py-20">
+        <div className="py-20 text-center">
           {hasMore ? (
             <Button
               size="lg"
               onClick={() => void handleLoadMore()}
               disabled={loadingMore}
-              className="h-16 px-16 bg-transparent border-2 border-border/50 rounded-full hover:bg-card transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              className="h-16 rounded-full border-2 border-border/50 bg-transparent px-16 text-lg transition-colors hover:bg-card disabled:pointer-events-none disabled:opacity-50"
             >
               {loadingMore ? "Loading..." : "Show more rooms"}
             </Button>
           ) : (
-            <p className="text-muted-foreground">You have reached the end of listings.</p>
+            <p className="text-lg text-muted-foreground">You have reached the end of listings.</p>
           )}
         </div>
         <div ref={loadMoreRef} className="h-2 w-full" />
@@ -603,7 +603,7 @@ export default function HomePage() {
 
       {!mapOpen && (
         <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50" onClick={() => setSearchOpen(!searchOpen)}>
-        <Button className="h-16 w-16 rounded-3xl shadow-2xl p-0 ">
+        <Button className="h-16 w-16 rounded-3xl p-0 shadow-2xl">
           <Search className="h-6 w-6" />
         </Button>
         </div>
