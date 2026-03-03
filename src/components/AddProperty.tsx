@@ -346,7 +346,7 @@ const AddProperty = ({ children }: Props) => {
                 </div>
                 <Slider
                   min={2000}
-                  max={15000}
+                  max={20000}
                   step={500}
                   value={[newProperty.rent]}
                   onValueChange={(v) =>
