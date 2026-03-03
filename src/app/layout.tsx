@@ -5,6 +5,7 @@ import type { Metadata } from "next"
 import { getSiteUrl } from "@/lib/seo"
 import "./globals.css";
 import { Toaster } from "sonner"
+import { Analytics } from "@vercel/analytics/next"
 
 const siteUrl = getSiteUrl()
 const siteName = "Kiraedar"
@@ -94,6 +95,7 @@ export default function RootLayout({
           <SiteFooter />
         </ThemeProvider>
         <Toaster position="top-right" theme="dark" />
+        <Analytics />
       </body>
     </html>
   );
