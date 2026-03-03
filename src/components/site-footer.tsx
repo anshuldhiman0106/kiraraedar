@@ -41,9 +41,9 @@ export function SiteFooter() {
               <IconMail className="h-4 w-4" />
               kiraedarr@gmail.com
             </a>
-            <a href="tel:+919816781565" className="inline-flex items-center gap-2 hover:underline">
+            <a href="tel:+917876151487" className="inline-flex items-center gap-2 hover:underline">
               <IconPhone className="h-4 w-4" />
-              +91 98167 81565
+              +91 78761 51487
             </a>
             <a
               href="https://instagram.com/_kiraedar_"
