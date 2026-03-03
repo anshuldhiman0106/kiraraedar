@@ -137,25 +137,37 @@ export async function fetchOwnerProfileById(ownerId: string): Promise<OwnerProfi
 }
 
 export async function incrementPropertyViews(propertyId: string, currentViews: number): Promise<number> {
-  const { data, error } = await supabase.rpc("increment_property_views", {
-    p_property_id: propertyId,
-  })
+  try {
+    const response = await fetch(`/api/properties/${propertyId}/increment-views`, {
+      method: "POST",
+      cache: "no-store",
+    })
 
-  if (error) {
-    return currentViews + 1
+    if (!response.ok) {
+      return currentViews
+    }
+
+    const payload = (await response.json()) as { views?: number }
+    return typeof payload.views === "number" ? payload.views : currentViews
+  } catch {
+    return currentViews
   }
-
-  return typeof data === "number" ? data : currentViews + 1
 }
 
 export async function incrementPropertyInquiries(propertyId: string, currentInquiries: number): Promise<number> {
-  const { data, error } = await supabase.rpc("increment_property_inquiries", {
-    p_property_id: propertyId,
-  })
+  try {
+    const response = await fetch(`/api/properties/${propertyId}/increment-inquiries`, {
+      method: "POST",
+      cache: "no-store",
+    })
 
-  if (error) {
-    return currentInquiries + 1
+    if (!response.ok) {
+      return currentInquiries
+    }
+
+    const payload = (await response.json()) as { inquiries?: number }
+    return typeof payload.inquiries === "number" ? payload.inquiries : currentInquiries
+  } catch {
+    return currentInquiries
   }
-
-  return typeof data === "number" ? data : currentInquiries + 1
 }

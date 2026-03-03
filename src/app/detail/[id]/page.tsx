@@ -18,6 +18,7 @@ import {
 import type { Property } from "@/features/home/types"
 
 export default function PropertyDetailPage() {
+  const VIEW_GUARD_WINDOW_MS = 5000
   const [property, setProperty] = useState<Property | null>(null)
   const [owner, setOwner] = useState<OwnerProfile | null>(null)
   const [contactingOwner, setContactingOwner] = useState(false)
@@ -48,8 +49,15 @@ export default function PropertyDetailPage() {
           setOwner(ownerData)
         }
 
-        const updatedViews = await incrementPropertyViews(data.id, data.views ?? 0)
-        setProperty((current) => (current ? { ...current, views: updatedViews } : current))
+        const viewGuardKey = `property_view_hit_${data.id}`
+        const lastViewHit = Number(window.sessionStorage.getItem(viewGuardKey) ?? 0)
+        const now = Date.now()
+
+        if (!Number.isFinite(lastViewHit) || now - lastViewHit > VIEW_GUARD_WINDOW_MS) {
+          window.sessionStorage.setItem(viewGuardKey, String(now))
+          const updatedViews = await incrementPropertyViews(data.id, data.views ?? 0)
+          setProperty((current) => (current ? { ...current, views: updatedViews } : current))
+        }
       } finally {
         setLoading(false)
       }
