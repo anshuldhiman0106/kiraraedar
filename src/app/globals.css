@@ -119,7 +119,7 @@
 
 @layer base {
   html {
-    font-size: clamp(16px, 0.98rem + 0.25vw, 18px);
+    font-size: clamp(14px, 0.9rem + 0.2vw, 16px);
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

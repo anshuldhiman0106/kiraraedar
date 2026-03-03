@@ -1,6 +1,7 @@
 
 import { ThemeProvider } from "@/components/theme-provider"
 import { SiteFooter } from "@/components/site-footer"
+import { Analytics } from "@vercel/analytics/next"
 import type { Metadata } from "next"
 import { getSiteUrl } from "@/lib/seo"
 import "./globals.css";
@@ -94,6 +95,7 @@ export default function RootLayout({
           <SiteFooter />
         </ThemeProvider>
         <Toaster position="top-right" theme="dark" />
+        <Analytics />
       </body>
     </html>
   );

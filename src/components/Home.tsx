@@ -366,7 +366,7 @@ export default function HomePage() {
                 <img src="logo.svg" alt="Kiraedar Logo" className="h-10 w-10" />
               </div>
               <div className="px-1 lg:block">
-                <h1 className="bg-clip-text text-3xl font-bold tracking-tight">
+                <h1 className="bg-clip-text text-2xl font-bold tracking-tight lg:text-3xl">
                   Kiraedar
                 </h1>
               </div>
@@ -406,10 +406,10 @@ export default function HomePage() {
 
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-2 lg:py-20">
         <div className="text-center mb-20 lg:mb-32">
-          <h1 className="mb-6 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-5xl leading-tight font-black text-transparent drop-shadow-2xl dark:from-white dark:via-slate-200 dark:to-slate-300 lg:text-7xl">
+          <h1 className="mb-6 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-4xl leading-tight font-black text-transparent drop-shadow-2xl dark:from-white dark:via-slate-200 dark:to-slate-300 lg:text-5xl">
             Find your perfect room
           </h1>
-          <p className="mx-auto mb-12 max-w-3xl text-2xl leading-relaxed text-muted-foreground lg:mb-16 lg:text-3xl">
+          <p className="mx-auto mb-12 max-w-3xl text-lg leading-relaxed text-muted-foreground lg:mb-16 lg:text-xl">
             Discover {displayedRoomsCount} matching rooms in Dharamshala at unbeatable prices
           </p>
         </div>
@@ -417,7 +417,7 @@ export default function HomePage() {
         <div className="mb-10 lg:mb-20 space-y-4 lg:space-y-0">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row gap-2 sm:flex-row sm:items-center sm:gap-4">
-              <h2 className="text-2xl font-bold text-foreground sm:text-3xl lg:text-4xl">{displayedRoomsCount} rooms</h2>
+              <h2 className="text-xl font-bold text-foreground sm:text-2xl lg:text-3xl">{displayedRoomsCount} rooms</h2>
               <Separator orientation="vertical" className="hidden sm:block h-6 bg-border" />
               <div className="flex items-center gap-2 text-base text-muted-foreground">
                 <span className="hidden sm:inline">Sort by:</span>
@@ -438,13 +438,13 @@ export default function HomePage() {
               <Button
                 variant="outline"
                 onClick={() => setMapOpen(true)}
-                className="h-12 flex-1 rounded-xl border-border/50 bg-card px-5 text-base lg:flex-none lg:px-7"
+                className="h-11 flex-1 rounded-xl border-border/50 bg-card px-5 text-sm lg:flex-none lg:px-7"
               >
                 Map
               </Button>
               <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" className="h-12 flex-1 rounded-xl border-border/50 bg-card px-5 text-base lg:flex-none lg:px-7">
+                  <Button variant="outline" className="h-11 flex-1 rounded-xl border-border/50 bg-card px-5 text-sm lg:flex-none lg:px-7">
                     <Filter className="mr-2 h-4 w-4" />
                     Filters
                   </Button>
@@ -515,11 +515,11 @@ export default function HomePage() {
                     </div>
                   </div>
                   <SheetFooter className="flex-row gap-2">
-                    <Button type="button" variant="outline" onClick={resetFilters} className="h-12 flex-1 text-base">
+                    <Button type="button" variant="outline" onClick={resetFilters} className="h-11 flex-1 text-sm">
                       Reset
                     </Button>
                     <SheetClose asChild>
-                      <Button type="button" className="h-12 flex-1 text-base">
+                      <Button type="button" className="h-11 flex-1 text-sm">
                         Apply
                       </Button>
                     </SheetClose>
@@ -556,11 +556,11 @@ export default function HomePage() {
               />
             </div>
             <SheetFooter className="border-t border-border/50 p-2 sm:p-4">
-              <Button type="button" variant="outline" onClick={clearMapAreaSearch} className="w-full text-base sm:w-auto">
+              <Button type="button" variant="outline" onClick={clearMapAreaSearch} className="w-full text-sm sm:w-auto">
                 Clear Map Area
               </Button>
               <SheetClose asChild>
-                <Button type="button" variant="outline" className="w-full text-base sm:w-auto">
+                <Button type="button" variant="outline" className="w-full text-sm sm:w-auto">
                   Done
                 </Button>
               </SheetClose>
@@ -590,12 +590,12 @@ export default function HomePage() {
               size="lg"
               onClick={() => void handleLoadMore()}
               disabled={loadingMore}
-              className="h-16 rounded-full border-2 border-border/50 bg-transparent px-16 text-lg transition-colors hover:bg-card disabled:pointer-events-none disabled:opacity-50"
+              className="h-14 rounded-full border-2 border-border/50 bg-transparent px-14 text-base transition-colors hover:bg-card disabled:pointer-events-none disabled:opacity-50"
             >
               {loadingMore ? "Loading..." : "Show more rooms"}
             </Button>
           ) : (
-            <p className="text-lg text-muted-foreground">You have reached the end of listings.</p>
+            <p className="text-base text-muted-foreground">You have reached the end of listings.</p>
           )}
         </div>
         <div ref={loadMoreRef} className="h-2 w-full" />
