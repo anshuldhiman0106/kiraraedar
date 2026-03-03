@@ -137,33 +137,25 @@ export async function fetchOwnerProfileById(ownerId: string): Promise<OwnerProfi
 }
 
 export async function incrementPropertyViews(propertyId: string, currentViews: number): Promise<number> {
-  const nextViews = currentViews + 1
-  const { data, error } = await supabase
-    .from("properties")
-    .update({ views: nextViews })
-    .eq("id", propertyId)
-    .select("views")
-    .single()
+  const { data, error } = await supabase.rpc("increment_property_views", {
+    p_property_id: propertyId,
+  })
 
   if (error) {
-    return currentViews
+    return currentViews + 1
   }
 
-  return (data?.views as number | undefined) ?? nextViews
+  return typeof data === "number" ? data : currentViews + 1
 }
 
 export async function incrementPropertyInquiries(propertyId: string, currentInquiries: number): Promise<number> {
-  const nextInquiries = currentInquiries + 1
-  const { data, error } = await supabase
-    .from("properties")
-    .update({ inquiries: nextInquiries })
-    .eq("id", propertyId)
-    .select("inquiries")
-    .single()
+  const { data, error } = await supabase.rpc("increment_property_inquiries", {
+    p_property_id: propertyId,
+  })
 
   if (error) {
-    return currentInquiries
+    return currentInquiries + 1
   }
 
-  return (data?.inquiries as number | undefined) ?? nextInquiries
+  return typeof data === "number" ? data : currentInquiries + 1
 }
