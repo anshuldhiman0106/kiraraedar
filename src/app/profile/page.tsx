@@ -416,12 +416,12 @@ export default function ProfilePage() {
                           🧑‍🎓 Renter (Student)
                         </SelectItem>
                         <SelectItem value="owner">🏠 Owner</SelectItem>
-                        <SelectItem value="other">
+                        {/* <SelectItem value="other">
                           💼 Working Professional
                         </SelectItem>
                         <SelectItem value="roommate_seeker">
                           🧑‍🤝‍🧑 Roommate Seeker
-                        </SelectItem>
+                        </SelectItem> */}
                       </SelectGroup>
                     </SelectContent>
                   </Select>
