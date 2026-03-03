@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import crypto from "crypto"
 import { createClient } from "@supabase/supabase-js"
 
+export const runtime = "nodejs"
+
 type VerifyPayload = {
   razorpay_order_id: string
   razorpay_payment_id: string
@@ -10,11 +12,15 @@ type VerifyPayload = {
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.RAZORPAY_KEY_SECRET) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY
+    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET
+
+    if (!razorpayKeySecret) {
       return NextResponse.json({ error: "Razorpay secret is not configured." }, { status: 500 })
     }
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!supabaseUrl || !supabaseAnonKey) {
       return NextResponse.json({ error: "Supabase auth environment variables are not configured." }, { status: 500 })
     }
 
@@ -36,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+      .createHmac("sha256", razorpayKeySecret)
       .update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`)
       .digest("hex")
 
@@ -44,7 +50,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
     }
 
-    const authClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    const authClient = createClient(supabaseUrl, supabaseAnonKey)
     const {
       data: { user },
       error: authError,
@@ -54,7 +60,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const adminClient = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { error: paymentUpdateError } = await adminClient
       .from("owner_plan_payments")
       .update({
