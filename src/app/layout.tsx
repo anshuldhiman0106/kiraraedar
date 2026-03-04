@@ -84,7 +84,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://tile.openstreetmap.org" />
         <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         
         <ThemeProvider
          attribute="class"

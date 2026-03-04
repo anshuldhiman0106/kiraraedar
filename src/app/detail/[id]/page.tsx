@@ -105,6 +105,23 @@ export default function PropertyDetailPage() {
   }, [property?.id])
 
   const images = useMemo(() => property?.images ?? [], [property?.images])
+  const desktopGallery = useMemo(() => {
+    if (!images.length) {
+      return { hero: null as null | { src: string; index: number }, thumbs: [] as Array<{ src: string; index: number }> }
+    }
+
+    const safeIndex = activeImageIndex >= 0 && activeImageIndex < images.length ? activeImageIndex : 0
+    const hero = { src: images[safeIndex], index: safeIndex }
+    const thumbPool = images
+      .map((src, index) => ({ src, index }))
+      .filter((item) => item.index !== safeIndex)
+
+    while (thumbPool.length < 4) {
+      thumbPool.push(hero)
+    }
+
+    return { hero, thumbs: thumbPool.slice(0, 4) }
+  }, [images, activeImageIndex])
 
   useEffect(() => {
     if (!property?.id) {
@@ -256,7 +273,19 @@ export default function PropertyDetailPage() {
     typeof property.lng === "number"
 
   const mapEmbedUrl = hasCoordinates
-    ? `https://www.openstreetmap.org/export/embed.html?layer=mapnik&marker=${property.lat}%2C${property.lng}&zoom=15`
+    ? (() => {
+      const lat = property.lat as number
+      const lng = property.lng as number
+      // Wider bbox keeps the pin exact while showing more surrounding area.
+      const latDelta = 0.0
+      const lngDelta = 0.0
+      const left = (lng - lngDelta).toFixed(6)
+      const right = (lng + lngDelta).toFixed(6)
+      const top = (lat + latDelta).toFixed(6)
+      const bottom = (lat - latDelta).toFixed(6)
+
+      return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lng.toFixed(6)}`
+    })()
     : null
 
   const externalMapUrl = hasCoordinates
@@ -351,22 +380,38 @@ export default function PropertyDetailPage() {
                   </>
                 )}
               </div>
-              <div className="hidden md:grid md:grid-cols-2 gap-1">
-                <div className="md:row-span-2">
-                  <img src={images[activeImageIndex]} alt={property.title} className="h-full w-full object-cover min-h-[520px]" />
-                </div>
-                {(images.length > 1 ? images : [images[0], images[0], images[0], images[0]])
-                  .slice(0, 4)
-                  .map((image, index) => (
+              <div className="hidden lg:grid lg:grid-cols-12 lg:gap-1.5">
+                <button
+                  type="button"
+                  className="col-span-7 overflow-hidden"
+                  onClick={() => {
+                    if (desktopGallery.hero) {
+                      setActiveImageIndex(desktopGallery.hero.index)
+                    }
+                  }}
+                >
+                  <img
+                    src={desktopGallery.hero?.src ?? images[0]}
+                    alt={`${property.title} main image`}
+                    className="h-full min-h-[520px] w-full object-cover"
+                  />
+                </button>
+                <div className="col-span-5 grid grid-cols-2 gap-1.5">
+                  {desktopGallery.thumbs.map((item, index) => (
                     <button
                       type="button"
-                      key={`${property.id}-mosaic-${index}`}
-                      onClick={() => setActiveImageIndex((index + 1) % images.length)}
-                      className="relative min-h-[258px]"
+                      key={`${property.id}-desktop-thumb-${index}`}
+                      onClick={() => setActiveImageIndex(item.index)}
+                      className="overflow-hidden"
                     >
-                      <img src={image} alt={`${property.title} ${index + 2}`} className="h-full w-full object-cover" />
+                      <img
+                        src={item.src}
+                        alt={`${property.title} photo ${index + 2}`}
+                        className="h-full min-h-[258px] w-full object-cover transition duration-200 hover:scale-[1.03]"
+                      />
                     </button>
                   ))}
+                </div>
               </div>
             </>
           ) : (

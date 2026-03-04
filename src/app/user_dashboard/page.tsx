@@ -87,6 +87,13 @@ type Profile = {
   profile_photo?: string | null;
   subscription_status?: string | null;
   verified_landlord?: boolean | null;
+  headline?: string | null;
+  occupation?: string | null;
+  company_or_college?: string | null;
+  move_in_date?: string | null;
+  monthly_budget_min?: number | null;
+  monthly_budget_max?: number | null;
+  preferred_contact_method?: string | null;
 };
 
 type DashboardTab = "overview" | "profile" | "rooms" | "analytics" | "settings";
@@ -641,12 +648,34 @@ export default function UniversalDashboard() {
                     <div className="space-y-2"><p className="text-sm text-muted-foreground">Phone</p><Input disabled value={profile.phone?.replace("+91", "") || ""} /></div>
                     <div className="space-y-2"><p className="text-sm text-muted-foreground">Current Location</p><Input value={profile.current_location || ""} onChange={(e) => updateProfile("current_location", e.target.value)} /></div>
                     <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Role</p>
+                      <p className="text-sm text-muted-foreground">Why are you here?</p>
                       <Select value={profile.role || ""} onValueChange={(v) => updateProfile("role", v)}>
                         <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="renter">Student/Renter</SelectItem>
-                          <SelectItem value="owner">Property Owner</SelectItem>
+                          <SelectItem value="owner">List room</SelectItem>
+                          <SelectItem value="renter">Search room</SelectItem>
+                          <SelectItem value="roommate_seeker">Find roommate</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Headline</p><Input value={profile.headline || ""} onChange={(e) => updateProfile("headline", e.target.value)} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Occupation</p><Input value={profile.occupation || ""} onChange={(e) => updateProfile("occupation", e.target.value)} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Company / College</p><Input value={profile.company_or_college || ""} onChange={(e) => updateProfile("company_or_college", e.target.value)} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Move-in Date</p><Input type="date" value={profile.move_in_date || ""} onChange={(e) => updateProfile("move_in_date", e.target.value)} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Monthly Budget Min (Rs)</p><Input type="number" min={0} value={profile.monthly_budget_min ?? ""} onChange={(e) => updateProfile("monthly_budget_min", e.target.value ? Number(e.target.value) : null)} /></div>
+                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Monthly Budget Max (Rs)</p><Input type="number" min={0} value={profile.monthly_budget_max ?? ""} onChange={(e) => updateProfile("monthly_budget_max", e.target.value ? Number(e.target.value) : null)} /></div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">Preferred Contact Method</p>
+                      <Select
+                        value={profile.preferred_contact_method || "in_app"}
+                        onValueChange={(v) => updateProfile("preferred_contact_method", v)}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Preferred contact" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="in_app">In-app</SelectItem>
+                          <SelectItem value="phone">Phone</SelectItem>
+                          <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
