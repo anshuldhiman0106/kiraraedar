@@ -461,7 +461,7 @@ export default function KiraraedarHero() {
                 Finish your new profile fields
               </DialogTitle>
               <DialogDescription className="pt-2 text-base leading-relaxed">
-                Add your headline, occupation, move-in and budget details for better room matches.
+                Add your headline, occupation and other details for better room matches.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-6 gap-3 sm:justify-end">
