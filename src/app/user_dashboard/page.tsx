@@ -889,8 +889,8 @@ export default function UniversalDashboard() {
       </main>
 
       <Dialog open={!!editingProperty} onOpenChange={(open) => !open && setEditingProperty(null)}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] sm:w-[calc(100vw-2rem)]">
+          <DialogHeader className="border-b px-6 py-4">
             <DialogTitle>Edit Property</DialogTitle>
             <DialogDescription>
               Update listing details, status, and pricing.
@@ -898,7 +898,7 @@ export default function UniversalDashboard() {
           </DialogHeader>
 
           {editingProperty && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2 items-start overflow-y-auto">
               <div className="space-y-2 md:col-span-2">
                 <p className="text-sm text-muted-foreground">Title</p>
                 <Input
@@ -1030,7 +1030,7 @@ export default function UniversalDashboard() {
                 </Select>
               </div>
 
-              <div className="space-y-3 rounded-lg border border-border/60 p-3">
+              <div className="space-y-3 rounded-lg border border-border/60 p-3 self-start">
                 <p className="text-sm font-medium">Availability</p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Available for inquiries</span>
@@ -1045,7 +1045,7 @@ export default function UniversalDashboard() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-lg border border-border/60 p-3">
+              <div className="space-y-3 rounded-lg border border-border/60 p-3 self-start">
                 <p className="text-sm font-medium">Amenities</p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Furnished</span>
@@ -1163,7 +1163,7 @@ export default function UniversalDashboard() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="border-t px-6 py-4">
             <Button variant="outline" onClick={() => setEditingProperty(null)}>
               Cancel
             </Button>
