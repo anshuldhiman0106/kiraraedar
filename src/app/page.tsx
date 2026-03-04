@@ -468,7 +468,7 @@ export default function KiraraedarHero() {
               <Button
                 variant="outline"
                 onClick={() => {setShowProfileFieldsModal(false)
-                  if (profileStatus?.role=== "owner") setShowOwnerPlanModal(true) }
+                }
                 }
               >
                 Later
