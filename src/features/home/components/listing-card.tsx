@@ -109,7 +109,13 @@ export function ListingCard({ property, index, isFavorite, onToggleFavorite }: L
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1">
                 <Bed className="h-3.5 w-3.5" />
-                {property.capacity === "single" ? "1 bed" : property.capacity === "duo" ? "2 beds" : "3 beds"}
+                {property.bed_count
+                  ? `${property.bed_count} bed${property.bed_count > 1 ? "s" : ""}`
+                  : property.capacity === "single"
+                    ? "1 bed"
+                    : property.capacity === "duo"
+                      ? "2 beds"
+                      : "3 beds"}
               </span>
               <span className="inline-flex items-center gap-1">
                 <Users className="h-3.5 w-3.5" />

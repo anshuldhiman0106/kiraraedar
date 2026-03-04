@@ -70,6 +70,15 @@ type Property = {
   capacity?: string;
   available: boolean;
   furnished?: boolean;
+  bed_count?: number | null;
+  electricity_included?: boolean;
+  water_included?: boolean;
+  wifi_included?: boolean;
+  attached_bathroom?: boolean;
+  parking_available?: boolean;
+  laundry_available?: boolean;
+  kitchen_available?: boolean;
+  other_facilities?: string | null;
   near_college?: boolean;
   views: number;
   inquiries: number;
@@ -110,6 +119,15 @@ type PropertyEditDraft = {
   gender: string | null;
   available: boolean;
   furnished: boolean;
+  bed_count: number;
+  electricity_included: boolean;
+  water_included: boolean;
+  wifi_included: boolean;
+  attached_bathroom: boolean;
+  parking_available: boolean;
+  laundry_available: boolean;
+  kitchen_available: boolean;
+  other_facilities: string;
   near_college: boolean;
 };
 
@@ -124,6 +142,15 @@ const toEditDraft = (property: Property): PropertyEditDraft => ({
   gender: property.gender ?? null,
   available: property.available,
   furnished: !!property.furnished,
+  bed_count: property.bed_count ?? 1,
+  electricity_included: !!property.electricity_included,
+  water_included: !!property.water_included,
+  wifi_included: !!property.wifi_included,
+  attached_bathroom: !!property.attached_bathroom,
+  parking_available: !!property.parking_available,
+  laundry_available: !!property.laundry_available,
+  kitchen_available: !!property.kitchen_available,
+  other_facilities: property.other_facilities ?? "",
   near_college: !!property.near_college,
 });
 
@@ -322,6 +349,11 @@ export default function UniversalDashboard() {
       return;
     }
 
+    if (editingProperty.bed_count < 1 || editingProperty.bed_count > 12) {
+      toast.error("Bed count must be between 1 and 12");
+      return;
+    }
+
     setSavingEdit(true);
 
     const payload = {
@@ -334,6 +366,15 @@ export default function UniversalDashboard() {
       gender: editingProperty.gender,
       available: editingProperty.available,
       furnished: editingProperty.furnished,
+      bed_count: editingProperty.bed_count,
+      electricity_included: editingProperty.electricity_included,
+      water_included: editingProperty.water_included,
+      wifi_included: editingProperty.wifi_included,
+      attached_bathroom: editingProperty.attached_bathroom,
+      parking_available: editingProperty.parking_available,
+      laundry_available: editingProperty.laundry_available,
+      kitchen_available: editingProperty.kitchen_available,
+      other_facilities: editingProperty.other_facilities.trim() || null,
       near_college: editingProperty.near_college,
     };
 
@@ -913,6 +954,21 @@ export default function UniversalDashboard() {
               </div>
 
               <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Beds</p>
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={editingProperty.bed_count}
+                  onChange={(e) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, bed_count: Number(e.target.value) || 1 } : current,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Area</p>
                 <Select
                   value={editingProperty.area ?? "none"}
@@ -1013,6 +1069,96 @@ export default function UniversalDashboard() {
                     }
                   />
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Electricity included</span>
+                  <Switch
+                    checked={editingProperty.electricity_included}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, electricity_included: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Water included</span>
+                  <Switch
+                    checked={editingProperty.water_included}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, water_included: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Wi-Fi included</span>
+                  <Switch
+                    checked={editingProperty.wifi_included}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, wifi_included: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Attached bathroom</span>
+                  <Switch
+                    checked={editingProperty.attached_bathroom}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, attached_bathroom: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Parking available</span>
+                  <Switch
+                    checked={editingProperty.parking_available}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, parking_available: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Laundry available</span>
+                  <Switch
+                    checked={editingProperty.laundry_available}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, laundry_available: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Kitchen available</span>
+                  <Switch
+                    checked={editingProperty.kitchen_available}
+                    onCheckedChange={(checked) =>
+                      setEditingProperty((current) =>
+                        current ? { ...current, kitchen_available: checked } : current,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <p className="text-sm text-muted-foreground">Other facilities</p>
+                <Input
+                  value={editingProperty.other_facilities}
+                  placeholder="Example: RO water, balcony, study table"
+                  onChange={(e) =>
+                    setEditingProperty((current) =>
+                      current ? { ...current, other_facilities: e.target.value } : current,
+                    )
+                  }
+                />
               </div>
             </div>
           )}

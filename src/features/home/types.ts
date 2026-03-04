@@ -18,6 +18,15 @@ export type Property = {
   capacity?: string
   available: boolean
   furnished?: boolean
+  bed_count?: number | null
+  electricity_included?: boolean
+  water_included?: boolean
+  wifi_included?: boolean
+  attached_bathroom?: boolean
+  parking_available?: boolean
+  laundry_available?: boolean
+  kitchen_available?: boolean
+  other_facilities?: string | null
   near_college?: boolean
   lat?: number | null
   lng?: number | null

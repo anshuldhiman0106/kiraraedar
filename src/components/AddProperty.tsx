@@ -47,6 +47,15 @@ const AddProperty = ({ children }: Props) => {
     rent: 2000,
     deposit: 0,
     furnished: false,
+    bed_count: 1,
+    electricity_included: false,
+    water_included: false,
+    wifi_included: false,
+    attached_bathroom: false,
+    parking_available: false,
+    laundry_available: false,
+    kitchen_available: false,
+    other_facilities: "",
     capacity: null as string | null,
     gender: null as string | null,
     available: true,
@@ -57,6 +66,22 @@ const AddProperty = ({ children }: Props) => {
     near_college: false,
     images: [] as File[],
   });
+
+  const SelectArea=[
+    "McLeod Ganj",
+    "Shyam Nagar",
+    "Ram Nagar",
+    "Sakoh",
+    "Education Board",
+    "Naddi",
+    "Bhagsu",
+    "Kotwali Bazar",
+    "Kacheri",
+    "Dari",
+    "Near Station",
+    "Chelian",
+    "Darnu",
+  ]
 
   const LocationPicker = ({
     lat,
@@ -226,6 +251,11 @@ const AddProperty = ({ children }: Props) => {
       return;
     }
 
+    if (newProperty.bed_count < 1 || newProperty.bed_count > 12) {
+      toast.error("Bed count must be between 1 and 12");
+      return;
+    }
+
     setUploading(true);
 
     try {
@@ -244,6 +274,15 @@ const AddProperty = ({ children }: Props) => {
         rent: newProperty.rent,
         deposit: newProperty.deposit ?? null,
         furnished: newProperty.furnished,
+        bed_count: newProperty.bed_count,
+        electricity_included: newProperty.electricity_included,
+        water_included: newProperty.water_included,
+        wifi_included: newProperty.wifi_included,
+        attached_bathroom: newProperty.attached_bathroom,
+        parking_available: newProperty.parking_available,
+        laundry_available: newProperty.laundry_available,
+        kitchen_available: newProperty.kitchen_available,
+        other_facilities: newProperty.other_facilities.trim() || null,
         capacity: newProperty.capacity,
         gender: newProperty.gender,
         available: newProperty.available,
@@ -271,6 +310,15 @@ const AddProperty = ({ children }: Props) => {
         rent: 2000,
         deposit: 0,
         furnished: false,
+        bed_count: 1,
+        electricity_included: false,
+        water_included: false,
+        wifi_included: false,
+        attached_bathroom: false,
+        parking_available: false,
+        laundry_available: false,
+        kitchen_available: false,
+        other_facilities: "",
         capacity: null,
         gender: null,
         available: true,
@@ -389,13 +437,13 @@ const AddProperty = ({ children }: Props) => {
                 <SelectValue placeholder="Select Area" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="McLeod Ganj">McLeod Ganj</SelectItem>
-                <SelectItem value="Shyam Nagar">Shyam Nagar</SelectItem>
-                <SelectItem value="Ram Nagar">Ram Nagar</SelectItem>
-                <SelectItem value="Sakoh">Sakoh</SelectItem>
-                <SelectItem value="Education Board">
-                  Education Board
-                </SelectItem>
+                {SelectArea.map((area) => (
+                  <SelectItem key={area} value={area}>
+                    {area}
+                  </SelectItem>
+                ))}
+                
+                
               </SelectContent>
             </Select>
 
@@ -455,6 +503,22 @@ const AddProperty = ({ children }: Props) => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label>Number of Beds *</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={newProperty.bed_count}
+                  onChange={(e) =>
+                    setNewProperty({
+                      ...newProperty,
+                      bed_count: Number(e.target.value) || 1,
+                    })
+                  }
+                />
+              </div>
             </div>
           </section>
 
@@ -484,6 +548,83 @@ const AddProperty = ({ children }: Props) => {
               />
             </div>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="flex justify-between border p-4 rounded-xl">
+                <Label>Electricity bill included</Label>
+                <Switch
+                  checked={newProperty.electricity_included}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, electricity_included: v })
+                  }
+                />
+              </div>
+              <div className="flex justify-between border p-4 rounded-xl">
+                <Label>Water bill included</Label>
+                <Switch
+                  checked={newProperty.water_included}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, water_included: v })
+                  }
+                />
+              </div>
+              <div className="flex justify-between border p-4 rounded-xl">
+                <Label>Wi-Fi included</Label>
+                <Switch
+                  checked={newProperty.wifi_included}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, wifi_included: v })
+                  }
+                />
+              </div>
+              <div className="flex justify-between border p-4 rounded-xl">
+                <Label>Attached bathroom</Label>
+                <Switch
+                  checked={newProperty.attached_bathroom}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, attached_bathroom: v })
+                  }
+                />
+              </div>
+              <div className="flex justify-between border p-4 rounded-xl">
+                <Label>Parking available</Label>
+                <Switch
+                  checked={newProperty.parking_available}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, parking_available: v })
+                  }
+                />
+              </div>
+              <div className="flex justify-between border p-4 rounded-xl">
+                <Label>Laundry available</Label>
+                <Switch
+                  checked={newProperty.laundry_available}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, laundry_available: v })
+                  }
+                />
+              </div>
+              <div className="flex justify-between border p-4 rounded-xl md:col-span-2">
+                <Label>Kitchen available</Label>
+                <Switch
+                  checked={newProperty.kitchen_available}
+                  onCheckedChange={(v) =>
+                    setNewProperty({ ...newProperty, kitchen_available: v })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Other facilities</Label>
+              <Input
+                placeholder="Example: RO water, study table, balcony"
+                value={newProperty.other_facilities}
+                onChange={(e) =>
+                  setNewProperty({ ...newProperty, other_facilities: e.target.value })
+                }
+              />
+            </div>
+
             <div className="flex justify-between border p-4 rounded-xl">
               <Label>Available</Label>
               <Switch
@@ -499,7 +640,7 @@ const AddProperty = ({ children }: Props) => {
 
           {/* IMAGES */}
           <section>
-            <Label>Photos (Max 8)</Label>
+            <Label className="mb-3">Photos (Max 8)</Label>
             <div className="flex items-center gap-4 p-4 border-2 border-dashed rounded-xl h-32">
               <ImagePlus className="h-10 w-10 text-muted-foreground" />
               <input

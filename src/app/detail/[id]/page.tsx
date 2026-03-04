@@ -430,7 +430,13 @@ export default function PropertyDetailPage() {
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <Bed className="h-4 w-4" />
-                  {property.capacity === "single" ? "1 bed" : property.capacity === "duo" ? "2 beds" : "3 beds"}
+                  {property.bed_count
+                    ? `${property.bed_count} bed${property.bed_count > 1 ? "s" : ""}`
+                    : property.capacity === "single"
+                      ? "1 bed"
+                      : property.capacity === "duo"
+                        ? "2 beds"
+                        : "3 beds"}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <Users className="h-4 w-4" />
@@ -477,7 +483,19 @@ export default function PropertyDetailPage() {
                 <Badge variant="secondary">{property.capacity?.toUpperCase()} - {property.gender?.toUpperCase()}</Badge>
                 {property.furnished && <Badge variant="secondary">Furnished</Badge>}
                 {property.near_college && <Badge variant="secondary">Near College</Badge>}
+                {property.electricity_included && <Badge variant="secondary">Electricity Included</Badge>}
+                {property.water_included && <Badge variant="secondary">Water Included</Badge>}
+                {property.wifi_included && <Badge variant="secondary">Wi-Fi Included</Badge>}
+                {property.attached_bathroom && <Badge variant="secondary">Attached Bathroom</Badge>}
+                {property.parking_available && <Badge variant="secondary">Parking</Badge>}
+                {property.laundry_available && <Badge variant="secondary">Laundry</Badge>}
+                {property.kitchen_available && <Badge variant="secondary">Kitchen</Badge>}
               </div>
+              {property.other_facilities && (
+                <p className="text-sm text-muted-foreground">
+                  Other facilities: {property.other_facilities}
+                </p>
+              )}
             </section>
 
             <section className="rounded-2xl border border-border/60 bg-card p-5">
