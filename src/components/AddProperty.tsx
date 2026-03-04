@@ -37,6 +37,7 @@ const AddProperty = ({ children }: Props) => {
   const [userId, setUserId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [locationConfirmed, setLocationConfirmed] = useState(false);
+  const [locatingCurrent, setLocatingCurrent] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2>(1);
 
@@ -83,6 +84,71 @@ const AddProperty = ({ children }: Props) => {
     "Darnu",
   ]
 
+  const setPickedLocation = (lat: number, lng: number) => {
+    setNewProperty((prev) => ({
+      ...prev,
+      lat: Number(lat.toFixed(7)),
+      lng: Number(lng.toFixed(7)),
+    }));
+    setLocationConfirmed(false);
+  };
+
+  const isWithinIndia = (lat: number, lng: number) => {
+    // Rough India bounding box.
+    return lat >= 6 && lat <= 38.8 && lng >= 68 && lng <= 97.5;
+  };
+
+  const useCurrentLocation = () => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      toast.error("Location not supported on this device/browser");
+      return;
+    }
+
+    setLocatingCurrent(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        if (!isWithinIndia(lat, lng)) {
+          setLocatingCurrent(false);
+          toast.error("Current location looks outside India. Please select location on the map.");
+          return;
+        }
+
+        setNewProperty((prev) => ({
+          ...prev,
+          lat: Number(lat.toFixed(7)),
+          lng: Number(lng.toFixed(7)),
+        }));
+        setLocationConfirmed(true);
+        setLocatingCurrent(false);
+        toast.success("Current location selected");
+      },
+      (error) => {
+        setLocatingCurrent(false);
+
+        if (error.code === error.PERMISSION_DENIED) {
+          toast.error("Location permission denied. Please allow location access.");
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          toast.error("Location request timed out. Try again.");
+          return;
+        }
+
+        toast.error("Unable to fetch current location");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
+
   const LocationPicker = ({
     lat,
     lng,
@@ -124,6 +190,18 @@ const AddProperty = ({ children }: Props) => {
       return null;
     };
 
+    const MapCenterUpdater = ({ target }: { target: [number, number] | null }) => {
+      const map = useMap();
+
+      useEffect(() => {
+        if (target) {
+          map.setView(target, map.getZoom(), { animate: true });
+        }
+      }, [target, map]);
+
+      return null;
+    };
+
     return (
       <div className="overflow-hidden rounded-xl border border-border/60 h-[360px]">
         <MapContainer
@@ -134,6 +212,7 @@ const AddProperty = ({ children }: Props) => {
         >
           <MapResizer />
           <MapClickHandler />
+          <MapCenterUpdater target={lat !== null && lng !== null ? [lat, lng] : null} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -672,16 +751,17 @@ const AddProperty = ({ children }: Props) => {
               <LocationPicker
                 lat={newProperty.lat}
                 lng={newProperty.lng}
-                onPick={(lat, lng) => {
-                  setNewProperty({
-                    ...newProperty,
-                    lat: Number(lat.toFixed(7)),
-                    lng: Number(lng.toFixed(7)),
-                  });
-                  setLocationConfirmed(false);
-                }}
+                onPick={setPickedLocation}
               />
               <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={useCurrentLocation}
+                  disabled={locatingCurrent}
+                >
+                  {locatingCurrent ? "Fetching current location..." : "Use current location"}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"

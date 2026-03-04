@@ -456,7 +456,7 @@ export default function PropertyDetailPage() {
                   {owner?.verified_landlord && (
                     <div className="flex items-center gap-1 mt-1">
                       <Verified className="h-4 w-4 text-green-500" />
-                      <span className="text-xs text-green-500">Verified Landlord</span>
+                      <span className="text-xs text-green-500">Verified Owner</span>
                     </div>
                   )}
                   
