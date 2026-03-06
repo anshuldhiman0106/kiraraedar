@@ -50,7 +50,12 @@ export function HeaderActions({ isLightTheme, onToggleTheme, onOpenFavorites, on
         return
       }
 
-      setDisplayEmail(user.email ?? "")
+      if (user.email?.startsWith("phone_") && user.email.endsWith("@phone.kiraedar.local")) {
+        setDisplayEmail(user.email.split("phone_")[1].split("@")[0])
+      }
+      else{
+        setDisplayEmail(user.email || "")
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
