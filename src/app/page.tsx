@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { IconHome, IconSearch } from "@tabler/icons-react"
 import Link from "next/link"
+import { Sun, Moon } from "lucide-react"
+
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useAuthSession } from "@/hooks/use-auth-session"
@@ -19,12 +21,15 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Shield, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import { useTheme } from "next-themes"
 
 const OWNER_PLAN_PRICE_INR = 100
 
 export default function KiraraedarHero() {
   const router = useRouter()
 
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const { session, user, loading: authLoading } = useAuthSession()
   const [statusLoading, setStatusLoading] = useState(false)
   const [profileStatus, setProfileStatus] = useState<{
@@ -102,6 +107,10 @@ export default function KiraraedarHero() {
       active = false
     }
   }, [user])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (authLoading || statusLoading) return
@@ -278,11 +287,31 @@ export default function KiraraedarHero() {
               <img src="/logo.svg" alt="Kiraedar logo" className="h-9 w-9" />
               <span className="text-lg font-semibold tracking-wide">Kiraedar</span>
             </div>
-            <Link href="/login">
-              <Button variant="outline" className="rounded-full px-5">
-                Sign in
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label="Toggle theme"
+                onClick={() => {
+                  if (!mounted) return
+                  setTheme(resolvedTheme === "light" ? "dark" : "light")
+                }}
+              >
+                {mounted && resolvedTheme === "dark" ? (
+                  <Sun className="h-5 w-5" />
+                ) : (
+                  <Moon className="h-5 w-5" />
+                )}
               </Button>
-            </Link>
+
+              <Link href="/login">
+                <Button variant="outline" className="rounded-full px-5">
+                  Sign in
+                </Button>
+              </Link>
+            </div>
           </header>
 
           <div className="grid flex-1 items-center gap-10 pb-6 lg:grid-cols-[minmax(0,1fr)_420px]">
