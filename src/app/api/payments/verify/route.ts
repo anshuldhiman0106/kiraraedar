@@ -80,7 +80,6 @@ export async function POST(request: Request) {
       .from("profiles")
       .update({
         subscription_status: "active",
-        verified_landlord: true,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id)
@@ -88,6 +87,19 @@ export async function POST(request: Request) {
     if (updateError) {
       console.error("Profile update error:", updateError)
       return NextResponse.json({ error: "Failed to activate subscription" }, { status: 500 })
+    }
+
+    const { error: ownerProfileError } = await adminClient
+      .from("owner_profiles")
+      .upsert({
+        profile_id: user.id,
+        verified_landlord: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "profile_id" })
+
+    if (ownerProfileError) {
+      console.error("Owner profile update error:", ownerProfileError)
+      return NextResponse.json({ error: "Failed to activate landlord verification" }, { status: 500 })
     }
 
     return NextResponse.json({

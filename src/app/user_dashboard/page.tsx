@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const AddProperty = dynamic(() => import("@/components/AddProperty"), {
   ssr: false,
@@ -96,17 +97,24 @@ type Profile = {
   profile_photo?: string | null;
   subscription_status?: string | null;
   verified_landlord?: boolean | null;
-  headline?: string | null;
   occupation?: string | null;
-  company_or_college?: string | null;
-  move_in_date?: string | null;
-  monthly_budget_min?: number | null;
-  monthly_budget_max?: number | null;
   preferred_contact_method?: string | null;
+};
+
+type StudentProfile = {
+  college: string;
+  year_of_study: string;
+  branch: string;
+};
+
+type Area = {
+  id: number;
+  name: string;
 };
 
 type DashboardTab = "overview" | "profile" | "rooms" | "analytics" | "settings";
 const OWNER_PLAN_PRICE_INR = 100;
+const MIN_PREFERRED_AREAS = 5;
 
 type PropertyEditDraft = {
   id: string;
@@ -156,6 +164,7 @@ const toEditDraft = (property: Property): PropertyEditDraft => ({
 
 export default function UniversalDashboard() {
   const [profile, setProfile] = useState<Profile>({});
+  const isOwner = profile.role === "owner";
   const [properties, setProperties] = useState<Property[]>([]);
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [loading, setLoading] = useState(true);
@@ -163,6 +172,15 @@ export default function UniversalDashboard() {
   const [actionPropertyId, setActionPropertyId] = useState<string | null>(null);
   const [editingProperty, setEditingProperty] = useState<PropertyEditDraft | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingContactPreference, setSavingContactPreference] = useState(false);
+  const [studentProfile, setStudentProfile] = useState<StudentProfile>({
+    college: "",
+    year_of_study: "",
+    branch: "",
+  });
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<number[]>([]);
 
   const loadRazorpayScript = () =>
     new Promise<boolean>((resolve) => {
@@ -189,23 +207,59 @@ export default function UniversalDashboard() {
       return;
     }
 
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    setProfile(profileData || {});
-
-    if (profileData?.role === "owner") {
-      const { data: propData } = await supabase
-        .from("properties")
+    const [
+      { data: profileData },
+      { data: ownerProfile },
+      { data: studentData },
+      { data: areasData },
+      { data: selectedAreasData },
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
         .select("*")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("owner_profiles")
+        .select("verified_landlord")
+        .eq("profile_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("student_profiles")
+        .select("college, year_of_study, branch")
+        .eq("profile_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("areas")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("profile_preferred_areas")
+        .select("area_id")
+        .eq("profile_id", user.id),
+    ]);
 
-      setProperties(propData || []);
-    }
+    setProfile({
+      ...(profileData || {}),
+      verified_landlord: !!ownerProfile?.verified_landlord,
+    });
+    setStudentProfile({
+      college: studentData?.college ?? "",
+      year_of_study: studentData?.year_of_study ?? "",
+      branch: studentData?.branch ?? "",
+    });
+    setAreas((areasData ?? []) as Area[]);
+    setSelectedAreaIds((selectedAreasData ?? []).map((item) => item.area_id));
+
+    const { data: propData } = await supabase
+      .from("properties")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false });
+
+    setProperties(propData || []);
+    setActiveTab(profileData?.role === "owner" ? "overview" : "rooms");
 
     setLoading(false);
   };
@@ -265,10 +319,127 @@ export default function UniversalDashboard() {
   }, [profile.id, profile.role])
 
   const updateProfile = async <K extends keyof Profile>(field: K, value: Profile[K]) => {
-    const updates = { ...profile, [field]: value };
-    setProfile(updates);
-    await supabase.from("profiles").upsert(updates);
+    setProfile((current) => ({ ...current, [field]: value }));
+  };
+
+  const togglePreferredArea = (areaId: number) => {
+    setSelectedAreaIds((current) =>
+      current.includes(areaId)
+        ? current.filter((id) => id !== areaId)
+        : [...current, areaId],
+    );
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profile.id) {
+      toast.error("Please login again.");
+      return;
+    }
+
+    setSavingProfile(true);
+
+    if (selectedAreaIds.length < MIN_PREFERRED_AREAS) {
+      setSavingProfile(false);
+      toast.error(`Please select at least ${MIN_PREFERRED_AREAS} preferred areas.`);
+      return;
+    }
+
+    const profilePayload = {
+      id: profile.id,
+      role: profile.role ?? null,
+      full_name: profile.full_name ?? null,
+      email: profile.email ?? null,
+      phone: profile.phone ?? null,
+      current_location: profile.current_location ?? null,
+      bio: profile.bio ?? null,
+      profile_photo: profile.profile_photo ?? null,
+      subscription_status: profile.subscription_status ?? null,
+      occupation: profile.occupation ?? null,
+      preferred_contact_method: profile.preferred_contact_method ?? "in_app",
+    };
+
+    const { error: profileError } = await supabase.from("profiles").upsert(profilePayload);
+    if (profileError) {
+      setSavingProfile(false);
+      toast.error("Failed to save profile");
+      return;
+    }
+
+    const isStudentRenter =
+      profile.role === "renter" && (profile.occupation ?? "").trim().toLowerCase() === "student";
+
+    if (isStudentRenter) {
+      const { error: studentError } = await supabase.from("student_profiles").upsert(
+        {
+          profile_id: profile.id,
+          college: studentProfile.college.trim() || null,
+          year_of_study: studentProfile.year_of_study.trim() || null,
+          branch: studentProfile.branch.trim() || null,
+        },
+        { onConflict: "profile_id" },
+      );
+      if (studentError) {
+        setSavingProfile(false);
+        toast.error("Failed to save student details");
+        return;
+      }
+    }
+
+    const { error: clearAreasError } = await supabase
+      .from("profile_preferred_areas")
+      .delete()
+      .eq("profile_id", profile.id);
+    if (clearAreasError) {
+      setSavingProfile(false);
+      toast.error("Failed to update preferred areas");
+      return;
+    }
+
+    if (selectedAreaIds.length > 0) {
+      const rows = selectedAreaIds.map((areaId) => ({
+        profile_id: profile.id!,
+        area_id: areaId,
+      }));
+      const { error: insertAreasError } = await supabase
+        .from("profile_preferred_areas")
+        .insert(rows);
+      if (insertAreasError) {
+        setSavingProfile(false);
+        toast.error("Failed to save preferred areas");
+        return;
+      }
+    }
+
+    setSavingProfile(false);
     toast.success("Profile updated");
+  };
+
+  const handleSaveContactPreference = async () => {
+    if (!profile.id) {
+      toast.error("Please login again.");
+      return;
+    }
+
+    if (profile.role !== "owner") {
+      toast.error("This setting is only available for owners.");
+      return;
+    }
+
+    setSavingContactPreference(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ preferred_contact_method: profile.preferred_contact_method ?? "phone" })
+      .eq("id", profile.id);
+
+    setSavingContactPreference(false);
+
+    if (error) {
+      toast.error("Failed to update contact preference.");
+      return;
+    }
+
+    toast.success("Contact preference updated.");
   };
 
   const handleToggleAvailability = async (property: Property) => {
@@ -339,8 +510,8 @@ export default function UniversalDashboard() {
       return;
     }
 
-    if (editingProperty.rent < 2000 || editingProperty.rent > 15000) {
-      toast.error("Rent must be between Rs 2000 and Rs 15000");
+    if (editingProperty.rent < 2000 || editingProperty.rent > 50000) {
+      toast.error("Rent must be between Rs 2000 and Rs 50000");
       return;
     }
 
@@ -591,27 +762,34 @@ export default function UniversalDashboard() {
         <aside className="space-y-4 lg:col-span-1">
           <Card className="border-border/60 shadow-sm">
             <CardContent className="grid gap-1 p-2">
-              <Button variant={activeTab === "overview" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("overview")}>
-                <BarChart3 className="mr-2 h-4 w-4" /> Overview
-              </Button>
-              <Button variant={activeTab === "profile" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("profile")}>
-                <Edit className="mr-2 h-4 w-4" /> Profile
-              </Button>
-              {
-                profile.role === "owner" && (<>
-              <Button variant={activeTab === "rooms" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("rooms")}>
-                <Bed className="mr-2 h-4 w-4" /> Properties
-              </Button>
-
-              <Button variant={activeTab === "analytics" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("analytics")}>
-                <TrendingUp className="mr-2 h-4 w-4" /> Analytics
-              </Button>
+              {isOwner ? (
+                <>
+                  <Button variant={activeTab === "overview" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("overview")}>
+                    <BarChart3 className="mr-2 h-4 w-4" /> Overview
+                  </Button>
+                  <Button variant={activeTab === "profile" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("profile")}>
+                    <Edit className="mr-2 h-4 w-4" /> Profile
+                  </Button>
+                  <Button variant={activeTab === "rooms" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("rooms")}>
+                    <Bed className="mr-2 h-4 w-4" /> Properties
+                  </Button>
+                  <Button variant={activeTab === "analytics" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("analytics")}>
+                    <TrendingUp className="mr-2 h-4 w-4" /> Analytics
+                  </Button>
+                  <Button variant={activeTab === "settings" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("settings")}>
+                    <Settings className="mr-2 h-4 w-4" /> Settings
+                  </Button>
                 </>
-                )
-              }
-              <Button variant={activeTab === "settings" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("settings")}>
-                <Settings className="mr-2 h-4 w-4" /> Settings
-              </Button>
+              ) : (
+                <>
+                  <Button variant={activeTab === "profile" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("profile")}>
+                    <Edit className="mr-2 h-4 w-4" /> Profile
+                  </Button>
+                  <Button variant={activeTab === "rooms" ? "default" : "ghost"} className="justify-start rounded-xl" onClick={() => setActiveTab("rooms")}>
+                    <Bed className="mr-2 h-4 w-4" /> Manage Properties
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -674,6 +852,41 @@ export default function UniversalDashboard() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {profile.role === "owner" && (
+                  <Card className="border-border/60 shadow-sm">
+                    <CardContent className="p-6 space-y-4">
+                      <div>
+                        <h3 className="font-semibold">Lead Contact Preference</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Choose how renters should contact you from property detail page.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">Preferred contact method</p>
+                        <Select
+                          value={profile.preferred_contact_method || "phone"}
+                          onValueChange={(v) => updateProfile("preferred_contact_method", v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Preferred contact method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="phone">Phone Call</SelectItem>
+                            <SelectItem value="whatsapp">WhatsApp Message</SelectItem>         
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        className="h-10 rounded-lg"
+                        onClick={handleSaveContactPreference}
+                        disabled={savingContactPreference}
+                      >
+                        {savingContactPreference ? "Saving..." : "Save Contact Preference"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </motion.div>
           )}
@@ -690,7 +903,7 @@ export default function UniversalDashboard() {
                     <div className="space-y-2"><p className="text-sm text-muted-foreground">Current Location</p><Input value={profile.current_location || ""} onChange={(e) => updateProfile("current_location", e.target.value)} /></div>
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">Why are you here?</p>
-                      <Select value={profile.role || ""} onValueChange={(v) => updateProfile("role", v)}>
+                      <Select  disabled value={profile.role || ""} onValueChange={(v) => updateProfile("role", v)}>
                         <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="owner">List room</SelectItem>
@@ -699,12 +912,7 @@ export default function UniversalDashboard() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Headline</p><Input value={profile.headline || ""} onChange={(e) => updateProfile("headline", e.target.value)} /></div>
                     <div className="space-y-2"><p className="text-sm text-muted-foreground">Occupation</p><Input value={profile.occupation || ""} onChange={(e) => updateProfile("occupation", e.target.value)} /></div>
-                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Company / College</p><Input value={profile.company_or_college || ""} onChange={(e) => updateProfile("company_or_college", e.target.value)} /></div>
-                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Move-in Date</p><Input type="date" value={profile.move_in_date || ""} onChange={(e) => updateProfile("move_in_date", e.target.value)} /></div>
-                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Monthly Budget Min (Rs)</p><Input type="number" min={0} value={profile.monthly_budget_min ?? ""} onChange={(e) => updateProfile("monthly_budget_min", e.target.value ? Number(e.target.value) : null)} /></div>
-                    <div className="space-y-2"><p className="text-sm text-muted-foreground">Monthly Budget Max (Rs)</p><Input type="number" min={0} value={profile.monthly_budget_max ?? ""} onChange={(e) => updateProfile("monthly_budget_max", e.target.value ? Number(e.target.value) : null)} /></div>
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">Preferred Contact Method</p>
                       <Select
@@ -721,9 +929,80 @@ export default function UniversalDashboard() {
                       </Select>
                     </div>
                   </div>
+
+                  {profile.role === "renter" &&
+                    (profile.occupation ?? "").trim().toLowerCase() === "student" && (
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">College</p>
+                          <Input
+                            value={studentProfile.college}
+                            onChange={(e) =>
+                              setStudentProfile((current) => ({
+                                ...current,
+                                college: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Year of Study</p>
+                          <Input
+                            value={studentProfile.year_of_study}
+                            onChange={(e) =>
+                              setStudentProfile((current) => ({
+                                ...current,
+                                year_of_study: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">Branch</p>
+                          <Input
+                            value={studentProfile.branch}
+                            onChange={(e) =>
+                              setStudentProfile((current) => ({
+                                ...current,
+                                branch: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Preferred Areas ({selectedAreaIds.length} selected, minimum {MIN_PREFERRED_AREAS})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {areas.map((area) => (
+                        <button
+                          key={area.id}
+                          type="button"
+                          onClick={() => togglePreferredArea(area.id)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-sm transition",
+                            selectedAreaIds.includes(area.id)
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-card hover:border-primary/50",
+                          )}
+                        >
+                          {area.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">Bio</p>
                     <Textarea className="min-h-[120px]" value={profile.bio || ""} onChange={(e) => updateProfile("bio", e.target.value)} />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={handleSaveProfile} disabled={savingProfile}>
+                      {savingProfile ? "Saving..." : "Save Profile"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -928,7 +1207,7 @@ export default function UniversalDashboard() {
                 <Input
                   type="number"
                   min={2000}
-                  max={15000}
+                  max={50000}
                   value={editingProperty.rent}
                   onChange={(e) =>
                     setEditingProperty((current) =>

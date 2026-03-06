@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, CircleAlert, Shield, Sparkles } from "lucide-react"
+import { CheckCircle2, Shield, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 const OWNER_PLAN_PRICE_INR = 100
@@ -36,17 +36,10 @@ export default function KiraraedarHero() {
     fullName: string | null
     email: string | null
     phone: string | null
-    headline: string | null
     occupation: string | null
-    companyOrCollege: string | null
-    moveInDate: string | null
-    monthlyBudgetMin: number | null
-    monthlyBudgetMax: number | null
     preferredContactMethod: string | null
   } | null>(null)
   const [showOwnerPlanModal, setShowOwnerPlanModal] = useState(false)
-  const [showProfileFieldsModal, setShowProfileFieldsModal] = useState(false)
-  const [profilePromptDismissed, setProfilePromptDismissed] = useState(false)
   const [upgradingPlan, setUpgradingPlan] = useState(false)
 
   const loadRazorpayScript = () =>
@@ -74,11 +67,18 @@ export default function KiraraedarHero() {
       }
 
       setStatusLoading(true)
-      const { data } = await supabase
-        .from("profiles")
-        .select("profile_completed, phone_verified, role, subscription_status, verified_landlord, full_name, email, phone, headline, occupation, company_or_college, move_in_date, monthly_budget_min, monthly_budget_max, preferred_contact_method")
-        .eq("id", user.id)
-        .single()
+      const [{ data }, { data: ownerProfile }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("profile_completed, phone_verified, role, subscription_status, full_name, email, phone, occupation, preferred_contact_method")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("owner_profiles")
+          .select("verified_landlord")
+          .eq("profile_id", user.id)
+          .maybeSingle(),
+      ])
 
       if (!active) return
       setProfileStatus({
@@ -86,22 +86,11 @@ export default function KiraraedarHero() {
         phoneVerified: !!data?.phone_verified,
         role: data?.role ?? null,
         subscriptionStatus: data?.subscription_status ?? null,
-        verifiedLandlord: !!data?.verified_landlord,
+        verifiedLandlord: !!ownerProfile?.verified_landlord,
         fullName: data?.full_name ?? null,
         email: data?.email ?? null,
         phone: data?.phone ?? null,
-        headline: data?.headline ?? null,
         occupation: data?.occupation ?? null,
-        companyOrCollege: data?.company_or_college ?? null,
-        moveInDate: data?.move_in_date ?? null,
-        monthlyBudgetMin:
-          typeof data?.monthly_budget_min === "number"
-            ? data.monthly_budget_min
-            : null,
-        monthlyBudgetMax:
-          typeof data?.monthly_budget_max === "number"
-            ? data.monthly_budget_max
-            : null,
         preferredContactMethod: data?.preferred_contact_method ?? null,
       })
       setStatusLoading(false)
@@ -131,37 +120,15 @@ export default function KiraraedarHero() {
   useEffect(() => {
     if (!session || !profileStatus) {
       setShowOwnerPlanModal(false)
-      setShowProfileFieldsModal(false)
-      setProfilePromptDismissed(false)
       return
     }
-
-    const hasMissingNewFields =
-      !profileStatus.headline ||
-      !profileStatus.occupation ||
-      !profileStatus.companyOrCollege ||
-      !profileStatus.moveInDate ||
-      profileStatus.monthlyBudgetMin === null ||
-      profileStatus.monthlyBudgetMax === null ||
-      !profileStatus.preferredContactMethod
 
     const isOwner = profileStatus.role === "owner"
     const hasActivePlan = profileStatus.subscriptionStatus === "active"
     const shouldShowOwnerPlan = isOwner && !hasActivePlan
 
-    if (hasMissingNewFields && !profilePromptDismissed) {
-      setShowProfileFieldsModal(true)
-      setShowOwnerPlanModal(false)
-      return
-    }
-
-    if (!hasMissingNewFields) {
-      setProfilePromptDismissed(false)
-    }
-
-    setShowProfileFieldsModal(false)
     setShowOwnerPlanModal(shouldShowOwnerPlan)
-  }, [session, profileStatus, profilePromptDismissed])
+  }, [session, profileStatus])
 
   const handleUpgradePlan = async () => {
     if (!session?.access_token || !profileStatus) {
@@ -441,45 +408,6 @@ export default function KiraraedarHero() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={showProfileFieldsModal}
-        onOpenChange={(open) => {
-          setShowProfileFieldsModal(open)
-          if (!open) {
-            setProfilePromptDismissed(true)
-          }
-        }}
-      >
-        <DialogContent className="overflow-hidden border-amber-500/30 p-0 sm:max-w-xl">
-          <div className="bg-gradient-to-br from-amber-500/10 via-background to-background p-7">
-            <DialogHeader>
-              <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-sm font-medium text-amber-700">
-                <CircleAlert className="h-4 w-4" />
-                Complete profile details
-              </div>
-              <DialogTitle className="text-2xl font-bold leading-tight sm:text-3xl">
-                Finish your new profile fields
-              </DialogTitle>
-              <DialogDescription className="pt-2 text-base leading-relaxed">
-                Add your headline, occupation and other details for better room matches.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="mt-6 gap-3 sm:justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {setShowProfileFieldsModal(false)
-                }
-                }
-              >
-                Later
-              </Button>
-              <Button onClick={() => router.push("/user_dashboard")}>
-                Complete Profile Now
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

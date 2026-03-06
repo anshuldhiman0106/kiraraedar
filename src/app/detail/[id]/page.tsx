@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Bed, Building, ChevronLeft, Copy, Heart, MapPin, Share, ShieldCheck, Sparkles, Users, Verified } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -25,6 +25,7 @@ export default function PropertyDetailPage() {
   const [isSaved, setIsSaved] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const swipeStartXRef = useRef<number | null>(null)
   const params = useParams<{ id: string }>()
   const router = useRouter()
 
@@ -171,13 +172,55 @@ export default function PropertyDetailPage() {
       const updatedInquiries = await incrementPropertyInquiries(property.id, property.inquiries ?? 0)
       setProperty((current) => (current ? { ...current, inquiries: updatedInquiries } : current))
 
-      if (owner?.phone) {
-        window.location.href = `tel:${owner.phone}`
-        return
+      const normalizePhone = (value: string | null | undefined): string | null => {
+        if (!value) return null
+        const trimmed = value.trim()
+        if (!trimmed) return null
+        const hasPlus = trimmed.startsWith("+")
+        const digits = trimmed.replace(/\D/g, "")
+        if (!digits) return null
+        return hasPlus ? `+${digits}` : digits
+      }
+
+      const toWhatsappNumber = (value: string | null | undefined): string | null => {
+        const normalized = normalizePhone(value)
+        if (!normalized) return null
+        return normalized.replace(/\D/g, "")
+      }
+
+      const title = encodeURIComponent(property.title)
+      const message = encodeURIComponent(`Hi, I found "${property.title}" on Kiraedar. Is it still available?`)
+
+      // If listing is not by actual owner, always use phone call by default.
+      if (!property.is_property_owner) {
+        const listedPhone = normalizePhone(property.actual_owner_phone || owner?.phone || null)
+        if (listedPhone) {
+          window.location.href = `tel:${listedPhone}`
+          return
+        }
+      } else {
+        const preferredMethod = owner?.preferred_contact_method ?? "phone"
+        const ownerPhone = normalizePhone(owner?.phone)
+        const ownerWhatsapp = toWhatsappNumber(owner?.whatsapp_number || owner?.phone)
+
+        if (preferredMethod === "whatsapp" && ownerWhatsapp) {
+          window.open(`https://wa.me/${ownerWhatsapp}?text=${message}`, "_blank", "noopener,noreferrer")
+          return
+        }
+
+        if (ownerPhone) {
+          window.location.href = `tel:${ownerPhone}`
+          return
+        }
+
+        if (ownerWhatsapp) {
+          window.open(`https://wa.me/${ownerWhatsapp}?text=${message}`, "_blank", "noopener,noreferrer")
+          return
+        }
       }
 
       if (owner?.email) {
-        window.location.href = `mailto:${owner.email}?subject=Inquiry%20for%20${encodeURIComponent(property.title)}`
+        window.location.href = `mailto:${owner.email}?subject=Inquiry%20for%20${title}`
         return
       }
 
@@ -268,6 +311,28 @@ export default function PropertyDetailPage() {
     setActiveImageIndex((current) => (current - 1 + images.length) % images.length)
   }
 
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    swipeStartXRef.current = event.touches[0]?.clientX ?? null
+  }
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (swipeStartXRef.current === null) {
+      return
+    }
+
+    const endX = event.changedTouches[0]?.clientX ?? swipeStartXRef.current
+    const deltaX = endX - swipeStartXRef.current
+    const swipeThreshold = 45
+
+    if (deltaX <= -swipeThreshold) {
+      handleNextImage()
+    } else if (deltaX >= swipeThreshold) {
+      handlePrevImage()
+    }
+
+    swipeStartXRef.current = null
+  }
+
   const hasCoordinates =
     typeof property.lat === "number" &&
     typeof property.lng === "number"
@@ -291,6 +356,14 @@ export default function PropertyDetailPage() {
   const externalMapUrl = hasCoordinates
     ? `https://www.google.com/maps/search/?api=1&query=${property.lat},${property.lng}`
     : null
+
+  const contactButtonText = !property
+    ? "Contact owner"
+    : !property.is_property_owner
+      ? "Call owner"
+      : owner?.preferred_contact_method === "whatsapp"
+        ? "WhatsApp owner"
+        : "Call owner"
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -343,7 +416,11 @@ export default function PropertyDetailPage() {
         <div className="overflow-hidden rounded-2xl border border-border/50 bg-muted mb-8 shadow-sm">
           {images.length ? (
             <>
-              <div className="relative md:hidden">
+              <div
+                className="relative md:hidden"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
                 <img
                   src={images[activeImageIndex]}
                   alt={property.title}
@@ -452,16 +529,33 @@ export default function PropertyDetailPage() {
                   {(owner?.full_name?.trim()?.[0] || "O").toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-medium">{owner?.full_name || "Property Owner"}</p>
+                  <p className="font-medium">{owner?.full_name || "Platform User"}</p>
                   {owner?.verified_landlord && (
                     <div className="flex items-center gap-1 mt-1">
                       <Verified className="h-4 w-4 text-green-500" />
                       <span className="text-xs text-green-500">Verified Owner</span>
                     </div>
                   )}
-                  
+                  {!property.is_property_owner && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Not the property owner
+                    </p>
+                  )}
                 </div>
               </div>
+
+              <div className="mt-4 rounded-lg border border-border/60 p-3 text-sm">
+                <p className="font-medium">Property owner contact</p>
+                {property.is_property_owner ? (
+                  <p className="text-muted-foreground">
+                    Same as listed user
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">
+                    {property.actual_owner_name || "Owner"}{property.actual_owner_phone ? ` - ${property.actual_owner_phone}` : ""}
+                  </p>
+                )}
+                </div>
             </section>
 
             <section className="space-y-4 rounded-2xl border border-border/60 bg-card p-5">
@@ -566,7 +660,7 @@ export default function PropertyDetailPage() {
               </div>
 
               <Button className="w-full mt-4 h-11 rounded-xl" onClick={handleContactOwner} disabled={contactingOwner}>
-                {contactingOwner ? "Contacting..." : "Contact owner"}
+                {contactingOwner ? "Contacting..." : contactButtonText}
               </Button>
               <p className="text-xs text-center text-muted-foreground mt-3">Inquiries are sent directly to the owner</p>
             </div>

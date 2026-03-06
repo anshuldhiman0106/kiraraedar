@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Building, ChevronLeft, ChevronRight } from "lucide-react";
 
 type PropertyCarouselProps = {
@@ -12,6 +12,7 @@ export function PropertyCarousel({
   isNewProperty,
 }: PropertyCarouselProps & { isNewProperty?: boolean }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const swipeStartXRef = useRef<number | null>(null);
 
   const nextSlide = () => {
     setCurrentIndex((prev) => (prev + 1) % images.length);
@@ -19,6 +20,26 @@ export function PropertyCarousel({
 
   const prevSlide = () => {
     setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    swipeStartXRef.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (swipeStartXRef.current === null) {
+      return;
+    }
+
+    const endX = event.changedTouches[0]?.clientX ?? swipeStartXRef.current;
+    const deltaX = endX - swipeStartXRef.current;
+    const swipeThreshold = 45;
+    if (deltaX <= -swipeThreshold) {
+      nextSlide();
+    } else if (deltaX >= swipeThreshold) {
+      prevSlide();
+    }
+    swipeStartXRef.current = null;
   };
 
   if (!images.length) {
@@ -30,7 +51,11 @@ export function PropertyCarousel({
   }
 
   return (
-    <div className="relative h-full overflow-hidden group">
+    <div
+      className="relative h-full overflow-hidden group"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <img
         src={images[currentIndex]}
         alt="Property"

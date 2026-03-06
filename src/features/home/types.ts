@@ -8,6 +8,9 @@ export type Property = {
   id: string
   owner_id?: string
   owner?: PropertyOwner | null
+  is_property_owner?: boolean
+  actual_owner_name?: string | null
+  actual_owner_phone?: string | null
   title: string
   description?: string
   rent: number

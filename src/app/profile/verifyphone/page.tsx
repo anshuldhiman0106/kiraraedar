@@ -61,7 +61,7 @@ export default function VerifyPhonePage() {
 
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("profile_completed, phone_verified")
+        .select("profile_completed, phone_verified, phone")
         .eq("id", data.user.id)
         .single();
 
@@ -75,6 +75,10 @@ export default function VerifyPhonePage() {
       if (profileData?.phone_verified) {
         router.replace("/");
         return;
+      }
+
+      if (profileData?.phone) {
+        setPhone(profileData.phone);
       }
 
       setSessionLoading(false);
@@ -161,6 +165,13 @@ export default function VerifyPhonePage() {
     await sendOtp();
   };
 
+  const changePhoneNumber = () => {
+    setStep("phone");
+    setOtp("");
+    setSessionId("");
+    setCountdown(RESEND_TIME);
+  };
+
   if (sessionLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -218,6 +229,7 @@ export default function VerifyPhonePage() {
             <div className="space-y-6">
               <PhoneInput
                 defaultCountry="IN"
+                country="IN"
                 placeholder="Enter phone number"
                 value={phone}
                 onChange={(value) => {
@@ -285,6 +297,16 @@ export default function VerifyPhonePage() {
                 ) : (
                   <span>Resend in {countdown}s</span>
                 )}
+              </div>
+
+              <div className="text-center text-sm">
+                <button
+                  type="button"
+                  onClick={changePhoneNumber}
+                  className="font-medium text-primary hover:underline"
+                >
+                  Change phone number
+                </button>
               </div>
             </div>
           )}

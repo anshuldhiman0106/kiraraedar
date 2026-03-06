@@ -3,318 +3,410 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxValue,
-  useComboboxAnchor,
-} from "@/components/ui/combobox";
-import {
   Camera,
-  CalendarClock,
-  CheckCircle,
+  CheckCircle2,
   ChevronRight,
   HousePlus,
-  IndianRupee,
-  Languages,
-  MapPin,
   Search,
-  ShieldCheck,
-  Sparkles,
-  UserPlus,
-  UserRound,
   Users,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 
+import { supabase } from "@/lib/supabase";
 import { Spinner } from "@/components/ui/spinner";
-import { Progress } from "@/components/ui/progress";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-  SelectLabel,
-} from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AuthCta } from "@/components/auth-cta";
 import { cn } from "@/lib/utils";
 
-type Profile = {
-  id?: string;
-  full_name?: string;
-  gender?: string;
-  phone?: string;
-  phone_verified?: boolean;
-  whatsapp_number?: string;
-  profile_photo?: string;
-  college?: string;
-  year_of_study?: string;
-  branch?: string;
-  role?: string;
-  headline?: string;
-  occupation?: string;
-  company_or_college?: string;
-  move_in_date?: string;
-  monthly_budget_min?: number;
-  monthly_budget_max?: number;
-  preferred_contact_method?: string;
-  preferred_areas?: string[];
-  current_location?: string;
-  profile_completed?: boolean;
+type ProfileRow = {
+  id: string;
+  full_name: string;
+  role: "owner" | "renter" | "roommate_seeker";
+  phone: string;
+  whatsapp_number: string;
+  profile_photo: string;
+  preferred_contact_method: "phone" | "whatsapp" | "email" | "in_app";
+  current_location: string;
+  occupation: string;
+  profile_completed: boolean;
+  phone_verified: boolean;
 };
 
-const PREFERRED_AREAS = [
-  "Shyam Nagar",
-  "McLeod Ganj",
-  "Badol",
-  "Chiran",
-  "Dari",
-  "Darnu",
-  "Sakoh",
-  "Near Stadium",
-  "Civil Lines",
-  "Kacheri",
-  "Dharamkot",
-  "Naddi",
-  "Bhagsu",
-];
+type StudentRow = {
+  college: string;
+  year_of_study: string;
+  branch: string;
+};
+
+type AreaRow = {
+  id: number;
+  name: string;
+};
 
 const INTENT_OPTIONS = [
   {
     role: "owner",
     title: "List room",
-    description: "I want to post my property and find tenants.",
+    description: "Post your property and receive tenant inquiries.",
     Icon: HousePlus,
-      HoverContent:false
+    disabled: false,
   },
   {
     role: "renter",
     title: "Search room",
-    description: "I want to discover and book a place to stay.",
+    description: "Find and compare rooms quickly.",
     Icon: Search,
-    HoverContent:false
+    disabled: false,
   },
   {
     role: "roommate_seeker",
     title: "Find roommate",
-    description: "I want to match with compatible roommates.",
+    description: "Coming soon.",
     Icon: Users,
-    HoverContent:
-      "This feature is coming soon! We're working hard to launch roommate matching in the next few months. In the meantime, you can still list your profile and search for rooms as a renter.",
+    disabled: true,
   },
 ] as const;
+const MIN_PREFERRED_AREAS = 5;
+
+const emptyProfile: ProfileRow = {
+  id: "",
+  full_name: "",
+  role: "renter",
+  phone: "",
+  whatsapp_number: "",
+  profile_photo: "",
+  preferred_contact_method: "in_app",
+  current_location: "",
+  occupation: "",
+  profile_completed: false,
+  phone_verified: false,
+};
+
+const emptyStudent: StudentRow = {
+  college: "",
+  year_of_study: "",
+  branch: "",
+};
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile>({});
   const [loading, setLoading] = useState(true);
-  const [authMissing, setAuthMissing] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const anchor = useComboboxAnchor();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [authMissing, setAuthMissing] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProfileRow>(emptyProfile);
+  const [student, setStudent] = useState<StudentRow>(emptyStudent);
+  const [areas, setAreas] = useState<AreaRow[]>([]);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<number[]>([]);
+  const [showOptional, setShowOptional] = useState(false);
+  const [isPhoneAuthUser, setIsPhoneAuthUser] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    const fetchProfile = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
+    const loadData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
         if (!active) return;
         setAuthMissing(true);
         setLoading(false);
         return;
       }
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", data.user.id)
-        .single();
+      setUserId(user.id);
+      const authProvider = String(user.app_metadata?.provider ?? "").toLowerCase();
+      const phoneFromAuth = (user.phone ?? "").trim();
+      const phoneAuth = authProvider === "phone";
+      setIsPhoneAuthUser(phoneAuth);
+
+      const [{ data: profileData }, { data: areaData }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "id, full_name, role, phone, whatsapp_number, profile_photo, preferred_contact_method, current_location, occupation, profile_completed, phone_verified",
+          )
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase.from("areas").select("id, name").eq("is_active", true).order("name"),
+      ]);
 
       if (!active) return;
 
-      setProfile(profileData ?? { id: data.user.id });
-      setLoading(false);
+      if (areaData) {
+        setAreas(areaData);
+      }
 
-       if (profileData?.profile_completed) {
-        if (!profileData.phone_verified) {
+      if (profileData?.profile_completed) {
+        if (profileData.phone_verified) {
+          router.replace("/");
+        } else {
           router.replace("/profile/verifyphone");
-          return;
         }
-        router.replace("/");
         return;
       }
+
+      if (profileData) {
+        const googleAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? "";
+        const resolvedPhoto = profileData.profile_photo ?? googleAvatar ?? "";
+
+        setProfile({
+          id: user.id,
+          full_name: profileData.full_name ?? "",
+          role: (profileData.role as ProfileRow["role"]) ?? "renter",
+          phone: profileData.phone?.trim() ? profileData.phone : phoneFromAuth,
+          whatsapp_number: profileData.whatsapp_number?.trim()
+            ? profileData.whatsapp_number
+            : phoneFromAuth,
+          profile_photo: resolvedPhoto,
+          preferred_contact_method:
+            (profileData.preferred_contact_method as ProfileRow["preferred_contact_method"]) ??
+            "in_app",
+          current_location: profileData.current_location ?? "",
+          occupation: profileData.occupation ?? "",
+          profile_completed: !!profileData.profile_completed,
+          phone_verified: !!profileData.phone_verified,
+        });
+
+      } else {
+        const googleAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? "";
+        setProfile((current) => ({
+          ...current,
+          id: user.id,
+          profile_photo: googleAvatar,
+          phone: phoneFromAuth || current.phone,
+          whatsapp_number: phoneFromAuth || current.whatsapp_number,
+        }));
+      }
+
+      const [{ data: selectedAreas }, { data: studentData }] = await Promise.all([
+        supabase.from("profile_preferred_areas").select("area_id").eq("profile_id", user.id),
+        supabase
+          .from("student_profiles")
+          .select("college, year_of_study, branch")
+          .eq("profile_id", user.id)
+          .maybeSingle(),
+      ]);
+
+      if (!active) return;
+
+      if (selectedAreas?.length) {
+        setSelectedAreaIds(selectedAreas.map((item) => item.area_id));
+      }
+
+      if (studentData) {
+        setStudent({
+          college: studentData.college ?? "",
+          year_of_study: studentData.year_of_study ?? "",
+          branch: studentData.branch ?? "",
+        });
+      }
+
+      setLoading(false);
     };
 
-    fetchProfile();
-
-   
+    void loadData();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
 
-  const updateProfile = async (field: keyof Profile, value: unknown) => {
-    const updated = { ...profile, [field]: value };
-    setProfile(updated);
-    const { error } = await supabase.from("profiles").upsert(updated);
-    if (error) {
-      toast.error("Could not save that change. Please retry.");
-    }
+  const requiredComplete = useMemo(() => {
+    const hasName = profile.full_name.trim().length > 0;
+    const hasContact =
+      profile.phone.trim().length > 0 || profile.whatsapp_number.trim().length > 0;
+    const hasPreferredAreas = selectedAreaIds.length >= MIN_PREFERRED_AREAS;
+    return Boolean(profile.role && hasName && hasContact && hasPreferredAreas);
+  }, [profile, selectedAreaIds]);
+
+  const progress = useMemo(() => (requiredComplete ? 100 : 75), [requiredComplete]);
+
+  const toggleArea = (areaId: number) => {
+    setSelectedAreaIds((current) =>
+      current.includes(areaId)
+        ? current.filter((value) => value !== areaId)
+        : [...current, areaId],
+    );
   };
 
-  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !userId) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+      toast.error("Please upload an image file.");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
+      toast.error("Image must be under 5MB.");
       return;
     }
 
-    setUploading(true);
-    try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+    setUploadingAvatar(true);
 
-      if (authError || !user) {
-        toast.error("Please login again");
-        return;
-      }
+    const extension =
+      (file.name.split(".").pop() || "").toLowerCase() || file.type.split("/")[1] || "jpg";
+    const filePath = `${userId}/avatar-${Date.now()}.${extension}`;
 
-      const fileExt =
-        (file.name.split(".").pop() || "").toLowerCase() ||
-        file.type.split("/")[1] ||
-        "jpg";
-      const filePath = `${user.id}/avatar-${Date.now()}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, {
+      upsert: true,
+      cacheControl: "3600",
+      contentType: file.type,
+    });
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, {
-          upsert: true,
-          cacheControl: "3600",
-          contentType: file.type,
-        });
-
-      if (uploadError) {
-        toast.error("Upload failed");
-        return;
-      }
-
-      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-      const photoUrl = `${data.publicUrl}?v=${Date.now()}`;
-      await updateProfile("profile_photo", photoUrl);
-      toast.success("Profile photo updated");
-    } catch (error) {
-      console.error(error);
-      toast.error("Upload failed");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
+    if (uploadError) {
+      setUploadingAvatar(false);
+      toast.error("Avatar upload failed.");
+      return;
     }
+
+    const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+    const photoUrl = `${data.publicUrl}?v=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, profile_photo: photoUrl });
+
+    setUploadingAvatar(false);
+    event.target.value = "";
+
+    if (updateError) {
+      toast.error("Avatar saved in storage but profile update failed.");
+      return;
+    }
+
+    setProfile((current) => ({ ...current, profile_photo: photoUrl }));
+    toast.success("Avatar updated.");
   };
 
-  const checks = useMemo(
-    () => [
-      {
-        label: "Basics",
-        complete: Boolean(
-          profile.full_name &&
-          profile.gender &&
-          profile.role &&
-          profile.current_location,
-        ),
-      },
-      {
-        label: "Neighborhoods",
-        complete: Boolean(profile.preferred_areas?.length),
-      },
-      {
-        label: "Profile photo",
-        complete: Boolean(profile.profile_photo),
-      },
-      {
-        label: "Phone verification",
-        complete: Boolean(profile.phone_verified),
-      },
-    ],
-    [profile],
-  );
+  const saveProfile = async () => {
+    if (!userId) return;
 
-  const completion = useMemo(() => {
-    const done = checks.filter((step) => step.complete).length;
-    return Math.round((done / checks.length) * 100);
-  }, [checks]);
+    if (!requiredComplete) {
+      toast.error(
+        `Please add role, full name, one contact number, and at least ${MIN_PREFERRED_AREAS} preferred areas.`,
+      );
+      return;
+    }
+    if (selectedAreaIds.length < MIN_PREFERRED_AREAS) {
+      toast.error(`Please select at least ${MIN_PREFERRED_AREAS} preferred areas.`);
+      return;
+    }
 
-  const isComplete = useMemo(
-    () =>
-      Boolean(
-        profile.full_name &&
-        profile.current_location &&
-        profile.preferred_areas?.length &&
-        profile.gender &&
-        profile.role,
-      ),
-    [profile],
-  );
-
-  const roleLabel =
-    profile.role === "owner"
-      ? "Listing rooms"
-      : profile.role === "roommate_seeker"
-        ? "Finding roommate"
-        : profile.role === "renter"
-          ? "Searching rooms"
-          : "Choose your goal";
-
-  const completeAndContinue = async () => {
-    if (!isComplete) return;
     setSaving(true);
-    await updateProfile("profile_completed", true);
-    toast.success("Profile saved. Continue to phone verification.");
-    router.push("/profile/verifyphone");
+
+    const profilePayload = {
+      id: userId,
+      full_name: profile.full_name.trim(),
+      role: profile.role,
+      phone: profile.phone.trim() || null,
+      whatsapp_number: profile.whatsapp_number.trim() || null,
+      profile_photo: profile.profile_photo || null,
+      preferred_contact_method: profile.preferred_contact_method,
+      current_location: profile.current_location.trim() || null,
+      occupation: profile.occupation.trim() || null,
+      profile_completed: true,
+    };
+
+    const { error: profileError } = await supabase.from("profiles").upsert(profilePayload);
+    if (profileError) {
+      setSaving(false);
+      toast.error(profileError.message || "Could not save profile.");
+      return;
+    }
+
+    const { error: clearAreasError } = await supabase
+      .from("profile_preferred_areas")
+      .delete()
+      .eq("profile_id", userId);
+    if (clearAreasError) {
+      setSaving(false);
+      toast.error("Could not update preferred areas.");
+      return;
+    }
+
+    if (selectedAreaIds.length > 0) {
+      const rows = selectedAreaIds.map((areaId) => ({
+        profile_id: userId,
+        area_id: areaId,
+      }));
+      const { error: insertAreasError } = await supabase
+        .from("profile_preferred_areas")
+        .insert(rows);
+      if (insertAreasError) {
+        setSaving(false);
+        toast.error("Could not save preferred areas.");
+        return;
+      }
+    }
+
+    if (profile.role === "owner") {
+      await supabase.from("student_profiles").delete().eq("profile_id", userId);
+      const { error: ownerError } = await supabase
+        .from("owner_profiles")
+        .upsert({ profile_id: userId });
+      if (ownerError) {
+        setSaving(false);
+        toast.error("Could not save owner profile.");
+        return;
+      }
+    } else {
+      await supabase.from("owner_profiles").delete().eq("profile_id", userId);
+      const isStudentRenter =
+        profile.role === "renter" && profile.occupation.trim().toLowerCase() === "student";
+
+      const studentPayload = isStudentRenter
+        ? {
+            profile_id: userId,
+            college: student.college.trim() || null,
+            year_of_study: student.year_of_study.trim() || null,
+            branch: student.branch.trim() || null,
+          }
+        : {
+            profile_id: userId,
+            college: null,
+            year_of_study: null,
+            branch: null,
+          };
+
+      const { error: studentError } = await supabase
+        .from("student_profiles")
+        .upsert(studentPayload, { onConflict: "profile_id" });
+      if (studentError) {
+        setSaving(false);
+        toast.error("Could not save student details.");
+        return;
+      }
+    }
+
     setSaving(false);
+    toast.success("Profile saved.");
+    router.replace("/profile/verifyphone");
   };
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Spinner className="mr-2" /> Loading...
+        <Spinner className="mr-2" /> Loading profile...
       </div>
     );
   }
@@ -322,471 +414,262 @@ export default function ProfilePage() {
   if (authMissing) {
     return (
       <AuthCta
-        title="Sign in to edit your profile"
-        description="Create your profile to start searching or listing properties."
+        title="Sign in to create your profile"
+        description="Set up your profile to start listing or searching."
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_10%_10%,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(14,165,233,0.16),transparent_32%),linear-gradient(180deg,var(--background),color-mix(in_oklab,var(--background),var(--muted)_28%))] px-4 py-6 sm:px-6 sm:py-8">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_12%_10%,rgba(16,185,129,0.12),transparent_33%),radial-gradient(circle_at_88%_0%,rgba(14,165,233,0.15),transparent_31%),linear-gradient(180deg,var(--background),color-mix(in_oklab,var(--background),var(--muted)_26%))] px-4 py-6 sm:px-6 sm:py-8">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[1.5fr_1fr]"
+        className="mx-auto w-full max-w-4xl space-y-5"
       >
-        <div className="space-y-5">
-          <Card className="overflow-hidden border-border/60 shadow-sm">
-            <CardContent className="p-0">
-              <div className="bg-gradient-to-r from-emerald-500/15 via-cyan-500/15 to-blue-500/10 px-5 py-5 sm:px-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
-                        <AvatarImage src={profile.profile_photo} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-lg">
-                          {profile.full_name?.[0]?.toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <Label
-                        htmlFor="avatar-upload"
-                        className="absolute -bottom-1 -right-1 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-border bg-card shadow-sm transition hover:scale-105"
-                      >
-                        <Camera className="h-3.5 w-3.5" />
-                      </Label>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-xl font-semibold">
-                        {profile.full_name || "Complete your profile"}
-                      </p>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {profile.current_location ||
-                          "Add your current location"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="rounded-full">
-                          <UserRound className="mr-1 h-3.5 w-3.5" />
-                          {roleLabel}
-                        </Badge>
-                        {profile.phone_verified ? (
-                          <Badge className="rounded-full bg-emerald-600 text-white">
-                            <ShieldCheck className="mr-1 h-3.5 w-3.5" />
-                            Verified
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="rounded-full">
-                            Verification pending
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-card/75 px-3 py-1.5 text-xs font-semibold">
-                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                    {completion}% complete
-                  </div>
-                </div>
-              </div>
-              <div className="px-5 py-4 sm:px-6">
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Profile strength
-                  </span>
-                  <span className="font-medium">{completion}%</span>
-                </div>
-                <Progress value={completion} />
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Better profiles get faster responses from owners and
-                  roommates.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <input
-            id="avatar-upload"
-            type="file"
-            accept="image/*"
-            onChange={uploadAvatar}
-            className="hidden"
-          />
-
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle>Your details</CardTitle>
-              <CardDescription>
-                Airbnb-like listing trust starts with a strong profile.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              <section className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    Basic Information
-                  </h3>
-                </div>
-                <div className="space-y-3">
-                  <Label className="px-1">Why are you here? *</Label>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {INTENT_OPTIONS.map(
-                      ({ role, title, description, Icon , HoverContent}) => (
-                        <button
-                          key={role}
-                          disabled={role === "roommate_seeker"} // disable if role is roommate_seeker
-                          type="button"
-                          onClick={() => {
-                            if (role !== "roommate_seeker") {
-                              updateProfile("role", role);
-                            }
-                          }}
-                          className={cn(
-                            "rounded-xl border p-3 text-left transition",
-                            "hover:border-primary/50 hover:bg-primary/5",
-                            profile.role === role
-                              ? "border-primary bg-primary/10"
-                              : "border-border bg-card",
-                            role === "roommate_seeker"                              ? "cursor-not-allowed opacity-50"
-                              : "cursor-pointer",
-                          )}
-                        >
-                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                            <Icon className="h-4 w-4" />
-                            {title}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {description}
-                          </p>
-                          {HoverContent && (
-                            <HoverCard>
-                              <HoverCardTrigger>Hover</HoverCardTrigger>
-                              <HoverCardContent>
-                                <p>{HoverContent}</p>
-                              </HoverCardContent>
-                            </HoverCard>
-                          )}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                </div>
-                <Input
-                  placeholder="Full name *"
-                  value={profile.full_name ?? ""}
-                  onChange={(e) => updateProfile("full_name", e.target.value)}
+        <Card className="border-border/60 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-3">
+              <span>Complete Profile in 1 Minute</span>
+              <Badge variant={requiredComplete ? "default" : "secondary"}>{progress}%</Badge>
+            </CardTitle>
+            <CardDescription>
+              Required now: role, full name, one contact number, and at least{" "}
+              {MIN_PREFERRED_AREAS} preferred areas.
+            </CardDescription>
+            <div className="mt-3 flex items-center gap-3">
+              <Avatar className="h-14 w-14 border border-border">
+                <AvatarImage src={profile.profile_photo} alt={profile.full_name || "User"} />
+                <AvatarFallback>
+                  {(profile.full_name?.trim()?.[0] || "U").toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <Label
+                  htmlFor="avatar-upload"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted/40"
+                >
+                  <Camera className="h-4 w-4" />
+                  {uploadingAvatar ? "Uploading..." : "Change avatar"}
+                </Label>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={uploadAvatar}
+                  disabled={uploadingAvatar}
                 />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Select
-                    value={profile.gender ?? ""}
-                    onValueChange={(v) => updateProfile("gender", v)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Gender *" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>Gender</SelectLabel>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Headline (example: Final year student, quiet and tidy)"
-                    value={profile.headline ?? ""}
-                    onChange={(e) => updateProfile("headline", e.target.value)}
-                  />
-                </div>
-                <Input
-                  placeholder="Current Location *"
-                  value={profile.current_location ?? ""}
-                  onChange={(e) =>
-                    updateProfile("current_location", e.target.value)
-                  }
-                />
-                <div className="space-y-2">
-                  <Label className="px-1">Preferred Areas *</Label>
-                  <Combobox
-                    multiple
-                    autoHighlight
-                    value={profile.preferred_areas ?? []}
-                    onValueChange={(v) => updateProfile("preferred_areas", v)}
-                    items={PREFERRED_AREAS}
-                  >
-                    <ComboboxChips ref={anchor} className="w-full">
-                      <ComboboxValue>
-                        {(values: string[]) => (
-                          <>
-                            {values.map((value) => (
-                              <ComboboxChip className="text-base" key={value}>
-                                {value}
-                              </ComboboxChip>
-                            ))}
-                            <ComboboxChipsInput
-                              placeholder={
-                                values.length === 0
-                                  ? "Select preferred areas"
-                                  : ""
-                              }
-                            />
-                          </>
-                        )}
-                      </ComboboxValue>
-                    </ComboboxChips>
-                    <ComboboxContent anchor={anchor}>
-                      <ComboboxEmpty>No areas found.</ComboboxEmpty>
-                      <ComboboxList>
-                        {(item) => (
-                          <ComboboxItem key={item} value={item}>
-                            {item}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                </div>
-              </section>
-
-              <section className="space-y-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Lifestyle and plans
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Input
-                    placeholder="Occupation"
-                    value={profile.occupation ?? ""}
-                    onChange={(e) =>
-                      updateProfile("occupation", e.target.value)
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <section className="space-y-3">
+              <Label>Why are you here? *</Label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {INTENT_OPTIONS.map(({ role, title, description, Icon, disabled }) => (
+                  <button
+                    key={role}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() =>
+                      !disabled && setProfile((current) => ({ ...current, role: role }))
                     }
-                  />
-                  <Input
-                    placeholder="Company or College"
-                    value={profile.company_or_college ?? ""}
-                    onChange={(e) =>
-                      updateProfile("company_or_college", e.target.value)
-                    }
-                  />
-                  <Input
-                    type="date"
-                    value={profile.move_in_date ?? ""}
-                    onChange={(e) =>
-                      updateProfile("move_in_date", e.target.value)
-                    }
-                  />
-                  
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="Monthly budget min"
-                    value={profile.monthly_budget_min ?? ""}
-                    onChange={(e) =>
-                      updateProfile(
-                        "monthly_budget_min",
-                        e.target.value ? Number(e.target.value) : null,
-                      )
-                    }
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="Monthly budget max"
-                    value={profile.monthly_budget_max ?? ""}
-                    onChange={(e) =>
-                      updateProfile(
-                        "monthly_budget_max",
-                        e.target.value ? Number(e.target.value) : null,
-                      )
-                    }
-                  />
-                </div>
-                
-              </section>
-
-              
-
-              {profile.role === "renter" && (
-                <section className="space-y-4 rounded-xl border bg-muted/30 p-4">
-                  <div>
-                    <h3 className="text-sm font-semibold">Student Details</h3>
-                    <p className="text-xs text-muted-foreground">
-                      This helps us show campus-relevant listings.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <Select
-                        disabled
-                        value={profile.college ?? ""}
-                        onValueChange={(v) => updateProfile("college", v)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="College" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Govt College Dharamshala">
-                            Govt. College Dharamshala
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Select
-                      value={profile.branch ?? ""}
-                      onValueChange={(v) => updateProfile("branch", v)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Branch</SelectLabel>
-                          <SelectItem value="BCA">BCA</SelectItem>
-                          <SelectItem value="BBA">BBA</SelectItem>
-                          <SelectItem value="BCom">BCom</SelectItem>
-                          <SelectItem value="BA">BA</SelectItem>
-                          <SelectItem value="BSc">BSc</SelectItem>
-                          <SelectItem value="Biotechnology">
-                            Biotechnology
-                          </SelectItem>
-                          <SelectItem value="BTech">BTech</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={profile.year_of_study ?? ""}
-                      onValueChange={(v) => updateProfile("year_of_study", v)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Year of study" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Year</SelectLabel>
-                          <SelectItem value="1">1st Year</SelectItem>
-                          <SelectItem value="2">2nd Year</SelectItem>
-                          <SelectItem value="3">3rd Year</SelectItem>
-                          <SelectItem value="4">4th Year</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </section>
-              )}
-
-
-
-              <section className="space-y-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Contact and bio
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Select
-                    value={profile.preferred_contact_method ?? "in_app"}
-                    onValueChange={(v) =>
-                      updateProfile("preferred_contact_method", v)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Preferred contact method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>Preferred Contact Method</SelectLabel>
-                        <SelectItem value="phone">Phone</SelectItem>
-                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-
-                  <Input
-                    placeholder="Phone number"
-                    value={profile.phone ?? ""}
-                    onChange={(e) => updateProfile("phone", e.target.value)}
-                  />
-                  <Input
-                    placeholder="WhatsApp number"
-                    value={profile.whatsapp_number ?? ""}
-                    onChange={(e) =>
-                      updateProfile("whatsapp_number", e.target.value)
-                    }
-                  />
-                </div>
-              </section>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle>Setup checklist</CardTitle>
-              <CardDescription>
-                Complete these to unlock better matching and trust.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Progress value={completion} />
-              <div className="space-y-2">
-                {checks.map((step) => (
-                  <div
-                    key={step.label}
-                    className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-sm"
-                  >
-                    <span>{step.label}</span>
-                    {step.complete ? (
-                      <CheckCircle className="h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        Pending
-                      </span>
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition",
+                      "hover:border-primary/50 hover:bg-primary/5",
+                      profile.role === role ? "border-primary bg-primary/10" : "border-border bg-card",
+                      disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                     )}
-                  </div>
+                  >
+                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <Icon className="h-4 w-4" />
+                      {title}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </button>
                 ))}
               </div>
-              <Button
-                onClick={completeAndContinue}
-                className="h-11 w-full rounded-xl"
-                disabled={!isComplete || saving}
-              >
-                {isComplete ? (
-                  <>
-                    Continue to verification
-                    <ChevronRight className="ml-1.5 h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Complete required fields
-                  </>
-                )}
-              </Button>
-              {uploading && (
-                <p className="text-center text-xs text-muted-foreground">
-                  Uploading your photo...
+            </section>
+
+            <section className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label className="mb-2" htmlFor="full_name">Full name *</Label>
+                <Input
+                  id="full_name"
+                  placeholder="Enter full name"
+                  value={profile.full_name}
+                  onChange={(event) =>
+                    setProfile((current) => ({ ...current, full_name: event.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <Label className="mb-2"  htmlFor="phone">Phone number</Label>
+                <Input
+                  id="phone"
+                  placeholder="Phone"
+                  value={profile.phone}
+                  onChange={(event) =>
+                    setProfile((current) => ({ ...current, phone: event.target.value }))
+                  }
+                  disabled={isPhoneAuthUser}
+                />
+              </div>
+              <div>
+                <Label className="mb-2"  htmlFor="whatsapp">WhatsApp number</Label>
+                <Input
+                  id="whatsapp"
+                  placeholder="WhatsApp"
+                  value={profile.whatsapp_number}
+                  onChange={(event) =>
+                    setProfile((current) => ({
+                      ...current,
+                      whatsapp_number: event.target.value,
+                    }))
+                  }
+                  disabled={isPhoneAuthUser}
+                />
+              </div>
+              {isPhoneAuthUser && (
+                <p className="sm:col-span-2 text-xs text-muted-foreground">
+                  Phone and WhatsApp are locked to your verified login number.
                 </p>
               )}
-              <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-                <p className="mb-1 font-medium text-foreground">
-                  Friendly onboarding flow
-                </p>
-                <p className="flex items-center gap-1">
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Set intent
-                </p>
-                <p className="flex items-center gap-1">
-                  <CalendarClock className="h-3.5 w-3.5" />
-                  Add move-in and lifestyle details
-                </p>
-                <p className="flex items-center gap-1">
-                  <IndianRupee className="h-3.5 w-3.5" />
-                  Add budget to get better matches
-                </p>
-                <p className="flex items-center gap-1">
-                  <Languages className="h-3.5 w-3.5" />
-                  Add languages for better communication
-                </p>
+              <div className="sm:col-span-2">
+                <Label className="mb-2"  >Preferred contact method</Label>
+                <Select
+                  value={profile.preferred_contact_method}
+                  onValueChange={(value) =>
+                    setProfile((current) => ({
+                      ...current,
+                      preferred_contact_method: value as ProfileRow["preferred_contact_method"],
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select contact method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
+              <div className="sm:col-span-2">
+                <Label className="mb-2 inline-block">
+                  Preferred areas ({selectedAreaIds.length} selected, minimum {MIN_PREFERRED_AREAS})
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {areas.map((area) => (
+                    <button
+                      key={area.id}
+                      type="button"
+                      onClick={() => toggleArea(area.id)}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-sm transition",
+                        selectedAreaIds.includes(area.id)
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:border-primary/50",
+                      )}
+                    >
+                      {area.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+              <p className="flex items-center gap-2">
+                {requiredComplete ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                Minimum completion: role + full name + one contact + {MIN_PREFERRED_AREAS} preferred
+                areas.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle>Optional Details</CardTitle>
+            <CardDescription>Add now or skip and complete later.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setShowOptional((current) => !current)}
+            >
+              {showOptional ? "Hide optional fields" : "Show optional fields"}
+            </Button>
+
+            {showOptional && (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input
+                    placeholder="Current location"
+                    value={profile.current_location}
+                    onChange={(event) =>
+                      setProfile((current) => ({
+                        ...current,
+                        current_location: event.target.value,
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="Occupation"
+                    value={profile.occupation}
+                    onChange={(event) =>
+                      setProfile((current) => ({ ...current, occupation: event.target.value }))
+                    }
+                  />
+                </div>
+
+                {profile.role === "renter" &&
+                  profile.occupation.trim().toLowerCase() === "student" && (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <Input
+                        placeholder="College"
+                        value={student.college}
+                        onChange={(event) =>
+                          setStudent((current) => ({ ...current, college: event.target.value }))
+                        }
+                      />
+                      <Input
+                        placeholder="Year of study"
+                        value={student.year_of_study}
+                        onChange={(event) =>
+                          setStudent((current) => ({
+                            ...current,
+                            year_of_study: event.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        placeholder="Branch"
+                        value={student.branch}
+                        onChange={(event) =>
+                          setStudent((current) => ({ ...current, branch: event.target.value }))
+                        }
+                      />
+                    </div>
+                  )}
+
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button className="h-11 rounded-xl px-6" onClick={saveProfile} disabled={saving}>
+            {saving ? "Saving..." : "Save and Continue"}
+          </Button>
         </div>
       </motion.div>
     </div>

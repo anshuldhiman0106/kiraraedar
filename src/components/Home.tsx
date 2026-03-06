@@ -106,7 +106,7 @@ export default function HomePage() {
         .select(
           `
             *,
-            owner:profiles!properties_owner_id_fkey(full_name, profile_photo, verified_landlord),
+            owner:profiles!properties_owner_id_fkey(full_name, profile_photo, owner_profile:owner_profiles(verified_landlord)),
             views,
             inquiries
           `,
@@ -127,12 +127,33 @@ export default function HomePage() {
           return currentProperties.filter((property) => property.id !== propertyId)
         }
 
+        const normalized = (() => {
+          const next = data as Property & {
+            owner?: {
+              full_name?: string | null
+              profile_photo?: string | null
+              owner_profile?: { verified_landlord?: boolean | null } | null
+            } | null
+          }
+
+          return {
+            ...next,
+            owner: next.owner
+              ? {
+                  full_name: next.owner.full_name ?? null,
+                  profile_photo: next.owner.profile_photo ?? null,
+                  verified_landlord: !!next.owner.owner_profile?.verified_landlord,
+                }
+              : null,
+          } as Property
+        })()
+
         if (!exists) {
-          return [data as Property, ...currentProperties]
+          return [normalized, ...currentProperties]
         }
 
         return currentProperties.map((property) =>
-          property.id === propertyId ? ({ ...property, ...(data as Property) }) : property,
+          property.id === propertyId ? ({ ...property, ...normalized }) : property,
         )
       })
     }

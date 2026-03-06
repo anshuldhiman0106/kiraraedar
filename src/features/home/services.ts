@@ -6,20 +6,49 @@ export type OwnerProfile = {
   full_name: string | null
   email: string | null
   phone: string | null
+  whatsapp_number: string | null
+  preferred_contact_method: "phone" | "whatsapp" | "email" | "in_app" | null
   verified_landlord: boolean
 }
+
+type RawPropertyRow = Property & {
+  owner?: {
+    full_name?: string | null
+    profile_photo?: string | null
+    owner_profile?: { verified_landlord?: boolean | null } | null
+  } | null
+}
+
+function normalizeProperty(row: RawPropertyRow): Property {
+  const verified = !!row.owner?.owner_profile?.verified_landlord
+
+  return {
+    ...row,
+    owner: row.owner
+      ? {
+          full_name: row.owner.full_name ?? null,
+          profile_photo: row.owner.profile_photo ?? null,
+          verified_landlord: verified,
+        }
+      : null,
+  }
+}
+
+const PROPERTY_WITH_OWNER_SELECT = `
+  *,
+  owner:profiles!properties_owner_id_fkey(
+    full_name,
+    profile_photo,
+    owner_profile:owner_profiles(verified_landlord)
+  ),
+  views,
+  inquiries
+`
 
 export async function fetchAvailableProperties(limit = 12, offset = 0): Promise<Property[]> {
   const { data, error } = await supabase
     .from("properties")
-    .select(
-      `
-        *,
-        owner:profiles!properties_owner_id_fkey(full_name, profile_photo, verified_landlord),
-        views,
-        inquiries
-      `,
-    )
+    .select(PROPERTY_WITH_OWNER_SELECT)
     .eq("available", true)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
@@ -28,7 +57,7 @@ export async function fetchAvailableProperties(limit = 12, offset = 0): Promise<
     throw error
   }
 
-  return (data ?? []) as Property[]
+  return (data ?? []).map((row) => normalizeProperty(row as RawPropertyRow))
 }
 
 export async function fetchPropertiesByIds(propertyIds: string[]): Promise<Property[]> {
@@ -38,21 +67,14 @@ export async function fetchPropertiesByIds(propertyIds: string[]): Promise<Prope
 
   const { data, error } = await supabase
     .from("properties")
-    .select(
-      `
-        *,
-        owner:profiles!properties_owner_id_fkey(full_name, profile_photo, verified_landlord),
-        views,
-        inquiries
-      `,
-    )
+    .select(PROPERTY_WITH_OWNER_SELECT)
     .in("id", propertyIds)
 
   if (error) {
     throw error
   }
 
-  const properties = (data ?? []) as Property[]
+  const properties = (data ?? []).map((row) => normalizeProperty(row as RawPropertyRow))
 
   return properties.sort((a, b) => propertyIds.indexOf(a.id) - propertyIds.indexOf(b.id))
 }
@@ -60,14 +82,7 @@ export async function fetchPropertiesByIds(propertyIds: string[]): Promise<Prope
 export async function fetchPropertyById(propertyId: string): Promise<Property | null> {
   const { data, error } = await supabase
     .from("properties")
-    .select(
-      `
-        *,
-        owner:profiles!properties_owner_id_fkey(full_name, profile_photo, verified_landlord),
-        views,
-        inquiries
-      `,
-    )
+    .select(PROPERTY_WITH_OWNER_SELECT)
     .eq("id", propertyId)
     .single()
 
@@ -75,7 +90,7 @@ export async function fetchPropertyById(propertyId: string): Promise<Property | 
     return null
   }
 
-  return data as Property
+  return normalizeProperty(data as RawPropertyRow)
 }
 
 export async function fetchAvailablePropertiesCount(): Promise<number> {
@@ -99,14 +114,7 @@ export async function fetchPropertiesInBounds(bounds: {
 }): Promise<Property[]> {
   const { data, error } = await supabase
     .from("properties")
-    .select(
-      `
-        *,
-        owner:profiles!properties_owner_id_fkey(full_name, profile_photo, verified_landlord),
-        views,
-        inquiries
-      `,
-    )
+    .select(PROPERTY_WITH_OWNER_SELECT)
     .eq("available", true)
     .gte("lat", bounds.south)
     .lte("lat", bounds.north)
@@ -119,21 +127,45 @@ export async function fetchPropertiesInBounds(bounds: {
     throw error
   }
 
-  return (data ?? []) as Property[]
+  return (data ?? []).map((row) => normalizeProperty(row as RawPropertyRow))
 }
 
 export async function fetchOwnerProfileById(ownerId: string): Promise<OwnerProfile | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, phone ,  verified_landlord")
-    .eq("id", ownerId)
-    .single()
+  const [{ data: profileData, error: profileError }, { data: ownerData, error: ownerError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, email, phone, whatsapp_number, preferred_contact_method")
+        .eq("id", ownerId)
+        .single(),
+      supabase
+        .from("owner_profiles")
+        .select("verified_landlord")
+        .eq("profile_id", ownerId)
+        .maybeSingle(),
+    ])
 
-  if (error) {
+  if (profileError) {
     return null
   }
 
-  return data as OwnerProfile
+  if (ownerError && ownerError.code !== "PGRST116") {
+    return null
+  }
+
+  if (!profileData) {
+    return null
+  }
+
+  return {
+    id: profileData.id,
+    full_name: profileData.full_name,
+    email: profileData.email,
+    phone: profileData.phone,
+    whatsapp_number: profileData.whatsapp_number,
+    preferred_contact_method: profileData.preferred_contact_method,
+    verified_landlord: !!ownerData?.verified_landlord,
+  }
 }
 
 export async function incrementPropertyViews(propertyId: string, currentViews: number): Promise<number> {

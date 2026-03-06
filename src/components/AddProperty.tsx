@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -40,6 +40,9 @@ const AddProperty = ({ children }: Props) => {
   const [locatingCurrent, setLocatingCurrent] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2>(1);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const previewSwipeStartXRef = useRef<number | null>(null);
 
   /* ================= PROPERTY STATE ================= */
   const [newProperty, setNewProperty] = useState({
@@ -65,6 +68,9 @@ const AddProperty = ({ children }: Props) => {
     lat: null as number | null,
     lng: null as number | null,
     near_college: false,
+    is_property_owner: true,
+    actual_owner_name: "",
+    actual_owner_phone: "",
     images: [] as File[],
   });
 
@@ -245,6 +251,15 @@ const AddProperty = ({ children }: Props) => {
     loadUser();
   }, []);
 
+  useEffect(() => {
+    const urls = newProperty.images.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [newProperty.images]);
+
   /* ================= IMAGE UPLOAD ================= */
   const uploadImages = async (files: File[]): Promise<string[]> => {
     if (!userId) return [];
@@ -274,6 +289,37 @@ const AddProperty = ({ children }: Props) => {
     }
 
     return urls;
+  };
+
+  const nextPreviewSlide = () => {
+    if (!previewUrls.length) return;
+    setPreviewIndex((prev) => (prev + 1) % previewUrls.length);
+  };
+
+  const prevPreviewSlide = () => {
+    if (!previewUrls.length) return;
+    setPreviewIndex((prev) => (prev - 1 + previewUrls.length) % previewUrls.length);
+  };
+
+  const handlePreviewTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    previewSwipeStartXRef.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handlePreviewTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (previewSwipeStartXRef.current === null) {
+      return;
+    }
+    const endX = event.changedTouches[0]?.clientX ?? previewSwipeStartXRef.current;
+    const deltaX = endX - previewSwipeStartXRef.current;
+    const threshold = 45;
+
+    if (deltaX <= -threshold) {
+      nextPreviewSlide();
+    } else if (deltaX >= threshold) {
+      prevPreviewSlide();
+    }
+
+    previewSwipeStartXRef.current = null;
   };
 
   /* ================= ADD PROPERTY ================= */
@@ -320,8 +366,19 @@ const AddProperty = ({ children }: Props) => {
       return;
     }
 
-    if (newProperty.rent < 2000 || newProperty.rent > 15000) {
-      toast.error("Rent must be between ₹2000 and ₹15000");
+    if (!newProperty.is_property_owner) {
+      if (!newProperty.actual_owner_name.trim()) {
+        toast.error("Please enter actual owner name");
+        return;
+      }
+      if (!newProperty.actual_owner_phone.trim()) {
+        toast.error("Please enter actual owner phone number");
+        return;
+      }
+    }
+
+    if (newProperty.rent < 2000 || newProperty.rent > 50000) {
+      toast.error("Rent must be between ₹2000 and ₹50000");
       return;
     }
 
@@ -370,6 +427,13 @@ const AddProperty = ({ children }: Props) => {
         lat: newProperty.lat,
         lng: newProperty.lng,
         near_college: newProperty.near_college,
+        is_property_owner: newProperty.is_property_owner,
+        actual_owner_name: newProperty.is_property_owner
+          ? null
+          : newProperty.actual_owner_name.trim(),
+        actual_owner_phone: newProperty.is_property_owner
+          ? null
+          : newProperty.actual_owner_phone.trim(),
         images: imageUrls.length > 0 ? imageUrls : null,
         views: 0,
         inquiries: 0,
@@ -406,10 +470,14 @@ const AddProperty = ({ children }: Props) => {
         lat: null,
         lng: null,
         near_college: false,
+        is_property_owner: true,
+        actual_owner_name: "",
+        actual_owner_phone: "",
         images: [],
       });
       setLocationConfirmed(false);
       setFormStep(1);
+      setPreviewIndex(0);
       setDialogOpen(false);
 
       router.refresh();
@@ -473,7 +541,7 @@ const AddProperty = ({ children }: Props) => {
                 </div>
                 <Slider
                   min={2000}
-                  max={20000}
+                  max={50000}
                   step={500}
                   value={[newProperty.rent]}
                   onValueChange={(v) =>
@@ -585,18 +653,24 @@ const AddProperty = ({ children }: Props) => {
 
               <div className="space-y-2">
                 <Label>Number of Beds *</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={newProperty.bed_count}
-                  onChange={(e) =>
-                    setNewProperty({
-                      ...newProperty,
-                      bed_count: Number(e.target.value) || 1,
-                    })
-                  }
-                />
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Selected beds</span>
+                    <span>{newProperty.bed_count}</span>
+                  </div>
+                  <Slider
+                    min={1}
+                    max={12}
+                    step={1}
+                    value={[newProperty.bed_count]}
+                    onValueChange={(v) =>
+                      setNewProperty({
+                        ...newProperty,
+                        bed_count: v[0] ?? 1,
+                      })
+                    }
+                  />
+                </div>
               </div>
             </div>
           </section>
@@ -626,6 +700,52 @@ const AddProperty = ({ children }: Props) => {
                 }
               />
             </div>
+
+            <div className="flex justify-between border p-4 rounded-xl">
+              <Label>I am the property owner</Label>
+              <Switch
+                checked={newProperty.is_property_owner}
+                onCheckedChange={(v) =>
+                  setNewProperty({
+                    ...newProperty,
+                    is_property_owner: v,
+                    actual_owner_name: v ? "" : newProperty.actual_owner_name,
+                    actual_owner_phone: v ? "" : newProperty.actual_owner_phone,
+                  })
+                }
+              />
+            </div>
+
+            {!newProperty.is_property_owner && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Actual owner name *</Label>
+                  <Input
+                    placeholder="Enter owner name"
+                    value={newProperty.actual_owner_name}
+                    onChange={(e) =>
+                      setNewProperty({
+                        ...newProperty,
+                        actual_owner_name: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Actual owner phone *</Label>
+                  <Input
+                    placeholder="Enter owner phone"
+                    value={newProperty.actual_owner_phone}
+                    onChange={(e) =>
+                      setNewProperty({
+                        ...newProperty,
+                        actual_owner_phone: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex justify-between border p-4 rounded-xl">
@@ -731,6 +851,7 @@ const AddProperty = ({ children }: Props) => {
                   const files = Array.from(
                     (e.target as HTMLInputElement).files || []
                   );
+                  setPreviewIndex(0);
                   setNewProperty({
                     ...newProperty,
                     images: files.slice(0, 8),
@@ -741,6 +862,51 @@ const AddProperty = ({ children }: Props) => {
                 {newProperty.images.length}/8 selected
               </label>
             </div>
+            {previewUrls.length > 0 && (
+              <div
+                className="relative mt-4 overflow-hidden rounded-xl border border-border/60"
+                onTouchStart={handlePreviewTouchStart}
+                onTouchEnd={handlePreviewTouchEnd}
+              >
+                <img
+                  src={previewUrls[previewIndex]}
+                  alt={`Preview ${previewIndex + 1}`}
+                  className="h-56 w-full object-cover"
+                />
+                {previewUrls.length > 1 && (
+                  <>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute left-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full bg-black/60 text-white hover:bg-black/70"
+                      onClick={prevPreviewSlide}
+                    >
+                      ‹
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full bg-black/60 text-white hover:bg-black/70"
+                      onClick={nextPreviewSlide}
+                    >
+                      ›
+                    </Button>
+                    <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-black/45 px-2 py-1">
+                      {previewUrls.map((_, index) => (
+                        <button
+                          key={`preview-dot-${index}`}
+                          type="button"
+                          className={`h-2 w-2 rounded-full ${index === previewIndex ? "bg-white" : "bg-white/60"}`}
+                          onClick={() => setPreviewIndex(index)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </section>
             </>
           )}
