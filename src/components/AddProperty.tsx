@@ -41,6 +41,7 @@ const AddProperty = ({ children }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2>(1);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [SelectedArea, setSelectedArea] = useState<Array<string> | null>(null);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const previewSwipeStartXRef = useRef<number | null>(null);
 
@@ -74,21 +75,24 @@ const AddProperty = ({ children }: Props) => {
     images: [] as File[],
   });
 
-  const SelectArea=[
-    "McLeod Ganj",
-    "Shyam Nagar",
-    "Ram Nagar",
-    "Sakoh",
-    "Education Board",
-    "Naddi",
-    "Bhagsu",
-    "Kotwali Bazar",
-    "Kacheri",
-    "Dari",
-    "Near Station",
-    "Chelian",
-    "Darnu",
-  ]
+  const fetchAreas = async () => {
+    try {
+      const { data, error } = await supabase.from("areas").select("name").order("name", { ascending: true });
+      if (error) throw error;
+      if (data) {
+        setSelectedArea(data.map((area) => area.name));
+      }
+    } catch (err) {
+      console.error("Error fetching areas:", err);
+      toast.error("Failed to load areas");
+    }
+  };
+
+
+  useEffect(() => { 
+    fetchAreas();
+  }, []);
+
 
   const setPickedLocation = (lat: number, lng: number) => {
     setNewProperty((prev) => ({
@@ -575,20 +579,27 @@ const AddProperty = ({ children }: Props) => {
             <h3 className="text-lg font-semibold">Location</h3>
 
             <Select
+             
               value={newProperty.area ?? undefined}
               onValueChange={(v) =>
                 setNewProperty({ ...newProperty, area: v })
               }
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Area" />
+              <SelectTrigger >
+                <SelectValue  placeholder="Select Area" />
               </SelectTrigger>
               <SelectContent>
-                {SelectArea.map((area) => (
-                  <SelectItem key={area} value={area}>
-                    {area}
-                  </SelectItem>
-                ))}
+                {SelectedArea ? (
+                  SelectedArea.map((area) => (
+                    <SelectItem key={area} value={area}>
+                      {area}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="p-4 text-sm text-muted-foreground">
+                    Loading areas...
+                  </div>
+                )}
                 
                 
               </SelectContent>
