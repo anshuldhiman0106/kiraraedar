@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from "@/components/ui/button"
-import { Eye, EyeOff } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -154,6 +154,15 @@ export default function LoginPage() {
     }
   }
 
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.push('/')
+  }
+
   const handleSendPhoneOtp = async () => {
     if (!phone) {
       setError('Phone number is required')
@@ -261,6 +270,15 @@ export default function LoginPage() {
 
           <Card className="border-border/60 bg-card/95 shadow-2xl backdrop-blur">
             <CardHeader className="pb-4">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mb-1 h-8 w-fit px-2 text-muted-foreground"
+                onClick={handleBack}
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" /> Back
+              </Button>
               <div className="mb-1 flex items-center gap-2">
                 <img src="/logo.svg" alt="Kiraedar logo" className="h-8 w-8" />
                 <span className="text-sm font-semibold tracking-wide text-muted-foreground">KIRAEDAR</span>
