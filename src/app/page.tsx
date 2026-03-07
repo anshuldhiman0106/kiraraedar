@@ -308,7 +308,7 @@ export default function KiraraedarHero() {
 
               <Link href="/login">
                 <Button variant="outline" className="rounded-full px-5">
-                  Sign in
+                  Sign In / Sign Up
                 </Button>
               </Link>
             </div>

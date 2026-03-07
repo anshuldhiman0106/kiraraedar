@@ -34,6 +34,7 @@ function getErrorMessage(err: unknown) {
 
 export default function LoginPage() {
   const OTP_LENGTH = 6
+  const OTP_RESEND_DELAY_SECONDS = 30
   const [mode, setMode] = useState<'phone' | 'email'>('phone')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,6 +46,7 @@ export default function LoginPage() {
   const [phoneOtp, setPhoneOtp] = useState("")
   const [phoneSessionId, setPhoneSessionId] = useState("")
   const [phoneStep, setPhoneStep] = useState<"phone" | "otp">("phone")
+  const [resendCooldown, setResendCooldown] = useState(0)
   const [error, setError] = useState('')
   const router = useRouter()
   const { user, loading: sessionLoading } = useAuthSession()
@@ -55,6 +57,16 @@ export default function LoginPage() {
       router.replace('/profile')
     }
   }, [sessionLoading, user, router])
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [resendCooldown])
 
   const handleAuth = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
@@ -77,6 +89,11 @@ export default function LoginPage() {
         return
       }
 
+      if (loginError?.message?.toLowerCase().includes('email not confirmed')) {
+        setError('Please verify your email from your inbox before logging in.')
+        return
+      }
+
       const { data: signUpData, error: signUpError } =
         await supabase.auth.signUp({
           email,
@@ -95,13 +112,19 @@ export default function LoginPage() {
         return
       }
 
-      if (signUpData?.user) {
+      if (signUpData?.session && signUpData?.user) {
         toast.success('Account created. Complete your profile to continue.')
         router.replace('/profile')
         return
       }
 
-      toast.success('Check your email for the login link!')
+      if (signUpData?.user && !signUpData?.session) {
+        toast.success('Verification email sent. Verify your email, then you will be redirected to profile.')
+        setError('Verification email sent. Please check your inbox and click the link.')
+        return
+      }
+
+      toast.success('Check your email for the verification link!')
     } catch (err: unknown) {
       setError(getErrorMessage(err))
     } finally {
@@ -157,6 +180,7 @@ export default function LoginPage() {
       setPhoneSessionId(data?.sessionId || '')
       toast.success('OTP sent to your phone')
       setPhoneStep('otp')
+      setResendCooldown(OTP_RESEND_DELAY_SECONDS)
     } catch (err: unknown) {
       setError(getErrorMessage(err))
     } finally {
@@ -314,12 +338,22 @@ export default function LoginPage() {
                       </Button>
                       <Button
                         type="button"
+                        variant="outline"
+                        className="h-10 w-full rounded-xl"
+                        onClick={handleSendPhoneOtp}
+                        disabled={phoneLoading || resendCooldown > 0}
+                      >
+                        {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}
+                      </Button>
+                      <Button
+                        type="button"
                         variant="ghost"
                         className="h-10 w-full rounded-xl"
                         onClick={() => {
                           setPhoneStep('phone')
                           setPhoneOtp('')
                           setPhoneSessionId('')
+                          setResendCooldown(0)
                         }}
                       >
                         Change phone number
