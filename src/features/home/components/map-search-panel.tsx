@@ -72,8 +72,8 @@ function ResultListCard({
 
 export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onCloseMap, isOpen }: MapSearchPanelProps) {
   const MOBILE_SHEET_COLLAPSED_PEEK = 80
-  const DESKTOP_CARD_WIDTH = 320
-  const DESKTOP_CARD_HEIGHT = 300
+  const DESKTOP_CARD_WIDTH = 280
+  const DESKTOP_CARD_HEIGHT = 250
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
   const [isMobileResultsOpen, setIsMobileResultsOpen] = useState(true)
   const [mobilePreviewProperty, setMobilePreviewProperty] = useState<Property | null>(null)
@@ -291,7 +291,7 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
           
           {desktopPreviewProperty && (
             <div
-              className="absolute z-1000 w-full max-w-xs"
+              className="absolute z-1000 w-70 max-w-[calc(100%-24px)]"
               style={{
                 pointerEvents: "auto",
                 ...getAnchoredPosition(desktopPreviewPoint, desktopMapRef.current, DESKTOP_CARD_WIDTH, DESKTOP_CARD_HEIGHT),
@@ -322,7 +322,7 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
                   <X className="h-4 w-4" />
                 </button>
 
-                <div className="relative h-48 w-full overflow-hidden">
+                <div className="relative h-40 w-full overflow-hidden">
                   {desktopPreviewProperty.images?.[0] ? (
                     <img
                       src={desktopPreviewProperty.images[0]}
@@ -334,13 +334,13 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
                     <div className="h-full w-full bg-muted" />
                   )}
                 </div>
-                <div className="p-3">
+                <div className="p-2.5">
                   <p className="line-clamp-1 text-base font-semibold">{desktopPreviewProperty.title}</p>
                   <p className="line-clamp-1 text-xs text-muted-foreground">{desktopPreviewProperty.address}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {desktopPreviewProperty.capacity === "single" ? "1 bed" : desktopPreviewProperty.capacity === "duo" ? "2 beds" : "3 beds"}
                   </p>
-                  <p className="mt-2 text-lg font-bold">Rs {desktopPreviewProperty.rent}</p>
+                  <p className="mt-1.5 text-base font-bold">Rs {desktopPreviewProperty.rent}</p>
                 </div>
               </div>
             </div>
@@ -433,7 +433,7 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
             <div
               role="button"
               tabIndex={0}
-              className="pointer-events-auto relative w-full max-w-xs cursor-pointer overflow-hidden rounded-3xl border border-border/60 bg-card shadow-2xl"
+              className="pointer-events-auto relative w-70 max-w-[calc(100vw-24px)] cursor-pointer overflow-hidden rounded-3xl border border-border/60 bg-card shadow-2xl"
               onClick={() => onOpenProperty(mobilePreviewProperty.id)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -444,7 +444,7 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
             >
               <button
                 type="button"
-                className="absolute top-3 left-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-background/90 shadow"
+                className="absolute top-2 left-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/90 shadow"
                 onClick={(event) => {
                   event.stopPropagation()
                   setMobilePreviewProperty(null)
@@ -453,11 +453,11 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
                 }}
                 aria-label="Close property preview"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
 
-              <div className="grid grid-cols-[140px_1fr] gap-3">
-                <div className="h-full min-h-32 overflow-hidden">
+              <div className="grid grid-cols-[112px_1fr] gap-2">
+                <div className="h-full min-h-28 overflow-hidden">
                   {mobilePreviewProperty.images?.[0] ? (
                     <img
                       src={mobilePreviewProperty.images[0]}
@@ -469,13 +469,13 @@ export function MapSearchPanel({ properties, onBoundsChange, onOpenProperty, onC
                     <div className="h-full w-full bg-muted" />
                   )}
                 </div>
-                <div className="py-3 pr-3">
-                  <p className="line-clamp-1 text-2xl font-semibold">{mobilePreviewProperty.title}</p>
-                  <p className="line-clamp-1 text-sm text-muted-foreground">{mobilePreviewProperty.address}</p>
-                  <p className="mt-1 text-base text-muted-foreground">
+                <div className="py-2 pr-2.5">
+                  <p className="line-clamp-1 text-xl font-semibold">{mobilePreviewProperty.title}</p>
+                  <p className="line-clamp-1 text-xs text-muted-foreground">{mobilePreviewProperty.address}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     {mobilePreviewProperty.capacity === "single" ? "1 bed" : mobilePreviewProperty.capacity === "duo" ? "2 beds" : "3 beds"}
                   </p>
-                  <p className="mt-3 text-2xl font-bold">Rs {mobilePreviewProperty.rent}</p>
+                  <p className="mt-1.5 text-xl font-bold">Rs {mobilePreviewProperty.rent}</p>
                 </div>
               </div>
             </div>

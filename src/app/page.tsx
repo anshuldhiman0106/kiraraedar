@@ -389,47 +389,47 @@ export default function KiraraedarHero() {
     <>
       <HomePage />
       <Dialog open={showOwnerPlanModal} onOpenChange={setShowOwnerPlanModal}>
-        <DialogContent className="overflow-hidden border-emerald-500/30 p-0 sm:max-w-2xl">
-          <div className="bg-gradient-to-br from-emerald-500/15 via-background to-background p-8">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto border-emerald-500/30 p-0 sm:max-w-xl md:max-w-2xl">
+          <div className="bg-gradient-to-br from-emerald-500/15 via-background to-background p-4 sm:p-6 md:p-8">
           <DialogHeader>
-            <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-700">
+            <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 sm:text-sm">
               <Sparkles className="h-4 w-4" />
               Pro Upgrade
             </div>
-            <DialogTitle className="flex items-center gap-3 text-3xl font-bold leading-tight sm:text-4xl">
-              <Shield className="h-8 w-8 text-emerald-600" />
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold leading-tight sm:gap-3 sm:text-3xl md:text-4xl">
+              <Shield className="h-6 w-6 text-emerald-600 sm:h-8 sm:w-8" />
               Upgrade to Kiraedar Pro
             </DialogTitle>
-            <DialogDescription className="pt-2 text-base leading-relaxed sm:text-lg">
+            <DialogDescription className="pt-2 text-sm leading-relaxed sm:text-base md:text-lg">
               Unlock verified Owner badge and improve listing .
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-card/80 p-6 shadow-sm">
-            <p className="text-lg font-semibold sm:text-xl">What you get</p>
+          <div className="mt-5 rounded-2xl border border-emerald-500/30 bg-card/80 p-4 shadow-sm sm:mt-6 sm:p-6">
+            <p className="text-base font-semibold sm:text-lg md:text-xl">What you get</p>
             <div className="mt-4  flex flex-wrap gap-2">
-              <Badge className="bg-blue-600 p-4 text-lg text-white">Verified Owner Tag</Badge>
-              <Badge className="bg-emerald-600 p-4 text-lg text-white">Higher Trust</Badge>
-              <Badge className="bg-slate-700 p-4 text-lg text-white">Better Lead Conversion</Badge>
+              <Badge className="bg-blue-600 px-3 py-2 text-sm text-white sm:p-4 sm:text-lg">Verified Owner Tag</Badge>
+              <Badge className="bg-emerald-600 px-3 py-2 text-sm text-white sm:p-4 sm:text-lg">Higher Trust</Badge>
+              <Badge className="bg-slate-700 px-3 py-2 text-sm text-white sm:p-4 sm:text-lg">Better Lead Conversion</Badge>
             </div>
             <div className="mt-5 space-y-3">
-              <p className="flex items-center gap-2 text-base">
+              <p className="flex items-center gap-2 text-sm sm:text-base">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 Stand out with a verified profile badge
               </p>
-              <p className="flex items-center gap-2 text-base">
+              <p className="flex items-center gap-2 text-sm sm:text-base">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 Increase owner profile trust and response quality
               </p>
             </div>
-            <p className="mt-5 text-base font-medium text-muted-foreground sm:text-lg">
+            <p className="mt-4 text-sm font-medium text-muted-foreground sm:mt-5 sm:text-base md:text-lg">
               One-time activation at Rs {OWNER_PLAN_PRICE_INR}.
             </p>
           </div>
-          <DialogFooter className="mt-7 gap-3 sm:justify-end">
-            <Button variant="outline" size="lg" className="h-12 px-6 text-base" onClick={() => setShowOwnerPlanModal(false)}>
+          <DialogFooter className="mt-5 gap-2 sm:mt-7 sm:gap-3 sm:justify-end">
+            <Button variant="outline" size="lg" className="h-10 px-4 text-sm sm:h-12 sm:px-6 sm:text-base" onClick={() => setShowOwnerPlanModal(false)}>
               Maybe later
             </Button>
-            <Button size="lg" className="h-12 px-7 text-base font-semibold" onClick={handleUpgradePlan} disabled={upgradingPlan}>
+            <Button size="lg" className="h-10 px-5 text-sm font-semibold sm:h-12 sm:px-7 sm:text-base" onClick={handleUpgradePlan} disabled={upgradingPlan}>
               {upgradingPlan ? "Starting payment..." : `Get Pro - Rs ${OWNER_PLAN_PRICE_INR}`}
             </Button>
           </DialogFooter>
