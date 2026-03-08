@@ -757,6 +757,16 @@ export default function UniversalDashboard() {
     }
   };
 
+  const handlePropertyAdded = (property: Property) => {
+    setProperties((current) => {
+      const exists = current.some((item) => item.id === property.id);
+      if (exists) {
+        return current.map((item) => (item.id === property.id ? { ...item, ...property } : item));
+      }
+      return [property, ...current];
+    });
+  };
+
   const totalViews = useMemo(
     () => properties.reduce((sum, property) => sum + (property.views || 0), 0),
     [properties],
@@ -902,7 +912,7 @@ export default function UniversalDashboard() {
                   <CardContent className="p-6">
                     <h3 className="mb-4 font-semibold">Quick Actions</h3>
                     <div className="space-y-3">
-                      <AddProperty>
+                      <AddProperty onPropertyAdded={handlePropertyAdded}>
                         <Button variant="outline" className="h-11 w-full justify-start rounded-lg"><Plus className="mr-2 h-4 w-4" />Add New Property</Button>
                       </AddProperty>
                       <Button variant="outline" className="h-11 w-full justify-start rounded-lg" onClick={() => setActiveTab("rooms")}><Bed className="mr-2 h-4 w-4" />Manage Properties</Button>
@@ -1069,7 +1079,7 @@ export default function UniversalDashboard() {
 
           {activeTab === "rooms" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <AddProperty>
+              <AddProperty onPropertyAdded={handlePropertyAdded}>
                 <Card className="cursor-pointer border-emerald-500/30 bg-emerald-500/10 shadow-sm transition hover:border-emerald-500/50">
                   <CardContent className="flex h-24 items-center justify-center gap-2 text-emerald-700">
                     <Plus className="h-5 w-5" />

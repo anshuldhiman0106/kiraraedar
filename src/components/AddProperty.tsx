@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, X } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -29,24 +29,24 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CircleMarker, MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 
-type Props = React.PropsWithChildren;
+type AddedProperty = {
+  id: string;
+  title: string;
+  rent: number;
+  address: string;
+  available: boolean;
+  views: number;
+  inquiries: number;
+  images?: string[] | null;
+};
 
-const AddProperty = ({ children }: Props) => {
+type AddPropertyProps = React.PropsWithChildren<{
+  onPropertyAdded?: (property: AddedProperty) => void;
+}>;
+
+const AddProperty = ({ children, onPropertyAdded }: AddPropertyProps) => {
   const DEFAULT_MAP_CENTER: [number, number] = [32.219, 76.3234];
-  const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [locationConfirmed, setLocationConfirmed] = useState(false);
-  const [locatingCurrent, setLocatingCurrent] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formStep, setFormStep] = useState<1 | 2>(1);
-  const [previewIndex, setPreviewIndex] = useState(0);
-  const [SelectedArea, setSelectedArea] = useState<Array<string> | null>(null);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
-  const previewSwipeStartXRef = useRef<number | null>(null);
-
-  /* ================= PROPERTY STATE ================= */
-  const [newProperty, setNewProperty] = useState({
+  const initialPropertyState = {
     title: "",
     description: "",
     rent: 2000,
@@ -73,7 +73,101 @@ const AddProperty = ({ children }: Props) => {
     actual_owner_name: "",
     actual_owner_phone: "",
     images: [] as File[],
-  });
+  };
+  const router = useRouter();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
+  const [locatingCurrent, setLocatingCurrent] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formStep, setFormStep] = useState<1 | 2>(1);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [SelectedArea, setSelectedArea] = useState<Array<string> | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const previewSwipeStartXRef = useRef<number | null>(null);
+
+  const HEIC_MIME_TYPES = new Set(["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]);
+
+  const isHeicFile = (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    return HEIC_MIME_TYPES.has(file.type) || lowerName.endsWith(".heic") || lowerName.endsWith(".heif");
+  };
+
+  const toJpegFileName = (name: string) => name.replace(/\.(heic|heif)$/i, ".jpg");
+
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    const heic2any = (await import("heic2any")).default;
+    const result = await heic2any({
+      blob: file,
+      toType: "image/jpeg",
+      quality: 0.9,
+    });
+
+    const convertedBlob = Array.isArray(result) ? result[0] : result;
+    return new File([convertedBlob], toJpegFileName(file.name), {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  };
+
+  const prepareSelectedImages = async (files: File[]) => {
+    if (!files.length) {
+      setNewProperty((current) => ({ ...current, images: [] }));
+      setPreviewIndex(0);
+      return;
+    }
+
+    const limitedFiles = files.slice(0, 8);
+    const hasHeic = limitedFiles.some(isHeicFile);
+
+    let loadingToastId: string | number | undefined;
+    if (hasHeic) {
+      loadingToastId = toast.loading("Converting  photos to JPEG...");
+    }
+
+    try {
+      const processedFiles: File[] = [];
+
+      for (const file of limitedFiles) {
+        if (isHeicFile(file)) {
+          const converted = await convertHeicToJpeg(file);
+          processedFiles.push(converted);
+          continue;
+        }
+        processedFiles.push(file);
+      }
+
+      setPreviewIndex(0);
+      setNewProperty((current) => ({
+        ...current,
+        images: processedFiles,
+      }));
+
+      if (loadingToastId !== undefined) {
+        toast.success("iPhone photos converted successfully.", { id: loadingToastId });
+      }
+    } catch (error) {
+      console.error("HEIC conversion failed", error);
+      if (loadingToastId !== undefined) {
+        toast.error("Failed to convert HEIC photo. Please retry with JPEG/PNG.", { id: loadingToastId });
+      } else {
+        toast.error("Failed to process selected images.");
+      }
+      setNewProperty((current) => ({ ...current, images: [] }));
+      setPreviewIndex(0);
+    }
+  };
+
+  /* ================= PROPERTY STATE ================= */
+  const [newProperty, setNewProperty] = useState(initialPropertyState);
+
+  const resetForm = () => {
+    setNewProperty(initialPropertyState);
+    setLocationConfirmed(false);
+    setLocatingCurrent(false);
+    setFormStep(1);
+    setPreviewIndex(0);
+  };
 
   const fetchAreas = async () => {
     try {
@@ -326,6 +420,33 @@ const AddProperty = ({ children }: Props) => {
     previewSwipeStartXRef.current = null;
   };
 
+  const removeSelectedImage = (indexToRemove: number) => {
+    setNewProperty((current) => {
+      const nextImages = current.images.filter((_, index) => index !== indexToRemove);
+
+      setPreviewIndex((currentIndex) => {
+        if (!nextImages.length) {
+          return 0;
+        }
+
+        if (currentIndex > indexToRemove) {
+          return currentIndex - 1;
+        }
+
+        if (currentIndex === indexToRemove) {
+          return Math.min(currentIndex, nextImages.length - 1);
+        }
+
+        return currentIndex;
+      });
+
+      return {
+        ...current,
+        images: nextImages,
+      };
+    });
+  };
+
   /* ================= ADD PROPERTY ================= */
   const addProperty = async () => {
     if (!userId) {
@@ -443,45 +564,21 @@ const AddProperty = ({ children }: Props) => {
         inquiries: 0,
       };
 
-      const { error } = await supabase
+      const { data: insertedProperty, error } = await supabase
         .from("properties")
-        .insert([propertyData]);
+        .insert([propertyData])
+        .select("id, title, rent, address, available, views, inquiries, images")
+        .single();
 
       if (error) throw error;
 
+      if (insertedProperty) {
+        onPropertyAdded?.(insertedProperty as AddedProperty);
+      }
+
       toast.success("Property published successfully!");
 
-      setNewProperty({
-        title: "",
-        description: "",
-        rent: 2000,
-        deposit: 0,
-        furnished: false,
-        bed_count: 1,
-        electricity_included: false,
-        water_included: false,
-        wifi_included: false,
-        attached_bathroom: false,
-        parking_available: false,
-        laundry_available: false,
-        kitchen_available: false,
-        other_facilities: "",
-        capacity: null,
-        gender: null,
-        available: true,
-        address: "",
-        area: null,
-        lat: null,
-        lng: null,
-        near_college: false,
-        is_property_owner: true,
-        actual_owner_name: "",
-        actual_owner_phone: "",
-        images: [],
-      });
-      setLocationConfirmed(false);
-      setFormStep(1);
-      setPreviewIndex(0);
+      resetForm();
       setDialogOpen(false);
 
       router.refresh();
@@ -501,7 +598,7 @@ const AddProperty = ({ children }: Props) => {
       onOpenChange={(open) => {
         setDialogOpen(open);
         if (!open) {
-          setFormStep(1);
+          resetForm();
         }
       }}
     >
@@ -857,17 +954,14 @@ const AddProperty = ({ children }: Props) => {
               <input
                 type="file"
                 multiple
+                accept="image/*,.heic,.heif"
                 className="hidden"
                 id="images"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const files = Array.from(
                     (e.target as HTMLInputElement).files || []
                   );
-                  setPreviewIndex(0);
-                  setNewProperty({
-                    ...newProperty,
-                    images: files.slice(0, 8),
-                  });
+                  await prepareSelectedImages(files);
                 }}
               />
               <label htmlFor="images" className="cursor-pointer">
@@ -885,6 +979,15 @@ const AddProperty = ({ children }: Props) => {
                   alt={`Preview ${previewIndex + 1}`}
                   className="h-56 w-full object-cover"
                 />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className="absolute right-2 top-2 h-8 w-8 rounded-full bg-black/60 text-white hover:bg-black/70"
+                  onClick={() => removeSelectedImage(previewIndex)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
                 {previewUrls.length > 1 && (
                   <>
                     <Button
@@ -917,6 +1020,36 @@ const AddProperty = ({ children }: Props) => {
                     </div>
                   </>
                 )}
+              </div>
+            )}
+            {previewUrls.length > 0 && (
+              <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                {previewUrls.map((url, index) => (
+                  <div
+                    key={`thumb-${index}`}
+                    className={`relative overflow-hidden rounded-lg border ${index === previewIndex ? "border-primary" : "border-border/60"}`}
+                  >
+                    <button
+                      type="button"
+                      className="block h-16 w-full"
+                      onClick={() => setPreviewIndex(index)}
+                    >
+                      <img
+                        src={url}
+                        alt={`Selected image ${index + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
+                      onClick={() => removeSelectedImage(index)}
+                      aria-label={`Remove image ${index + 1}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </section>
