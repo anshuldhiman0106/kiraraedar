@@ -478,21 +478,65 @@ export default function UniversalDashboard() {
 
     setActionPropertyId(propertyId);
 
-    const { error } = await supabase
-      .from("properties")
-      .delete()
-      .eq("id", propertyId)
-      .eq("owner_id", profile.id);
+    try {
+      // First, fetch the property to get image URLs
+      const { data: property, error: fetchError } = await supabase
+        .from("properties")
+        .select("images")
+        .eq("id", propertyId)
+        .eq("owner_id", profile.id)
+        .single();
 
-    setActionPropertyId(null);
+      if (fetchError) {
+        toast.error("Failed to fetch property details");
+        setActionPropertyId(null);
+        return;
+      }
 
-    if (error) {
-      toast.error("Failed to delete property");
-      return;
+      // Delete images from storage if they exist
+      if (property?.images && Array.isArray(property.images) && property.images.length > 0) {
+        const imagePaths = property.images
+          .map((url: string) => {
+            // Extract the storage path from the public URL
+            // URL format: https://{project}.supabase.co/storage/v1/object/public/room-images/{path}
+            const match = url.match(/\/room-images\/(.+)$/);
+            return match ? match[1] : null;
+          })
+          .filter((path): path is string => path !== null);
+
+        if (imagePaths.length > 0) {
+          const { error: storageError } = await supabase.storage
+            .from("room-images")
+            .remove(imagePaths);
+
+          if (storageError) {
+            console.error("Failed to delete images from storage:", storageError);
+            // Continue with property deletion even if image deletion fails
+          }
+        }
+      }
+
+      // Delete the property from database
+      const { error: deleteError } = await supabase
+        .from("properties")
+        .delete()
+        .eq("id", propertyId)
+        .eq("owner_id", profile.id);
+
+      setActionPropertyId(null);
+
+      if (deleteError) {
+        toast.error("Failed to delete property");
+        return;
+      }
+
+      setProperties((current) => current.filter((item) => item.id !== propertyId));
+      toast.success("Property and images deleted successfully");
+    } catch (error) {
+      console.error("Error deleting property:", error);
+      toast.error("An error occurred while deleting the property");
+      setActionPropertyId(null);
     }
-
-    setProperties((current) => current.filter((item) => item.id !== propertyId));
-    toast.success("Property deleted");
   };
 
   const handleSavePropertyEdit = async () => {
