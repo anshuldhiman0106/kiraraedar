@@ -106,6 +106,60 @@ export async function fetchAvailablePropertiesCount(): Promise<number> {
   return count ?? 0
 }
 
+type AreaRow = {
+  name?: string | null
+}
+
+async function fetchAreasFromTable(tableName: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from(tableName)
+    .select("name")
+    .order("name", { ascending: true })
+
+  if (error) {
+    throw error
+  }
+
+  const uniqueAreas = Array.from(
+    new Set(
+      ((data ?? []) as AreaRow[])
+        .map((row) => row.name?.trim())
+        .filter((name): name is string => !!name),
+    ),
+  )
+
+  return uniqueAreas
+}
+
+export async function fetchAreas(): Promise<string[]> {
+  let areaTableError: unknown = null
+  let areasTableError: unknown = null
+
+  try {
+    const areaTableData = await fetchAreasFromTable("area")
+    if (areaTableData.length > 0) {
+      return areaTableData
+    }
+  } catch (error) {
+    areaTableError = error
+  }
+
+  try {
+    const areasTableData = await fetchAreasFromTable("areas")
+    if (areasTableData.length > 0) {
+      return areasTableData
+    }
+  } catch (error) {
+    areasTableError = error
+  }
+
+  if (areaTableError && areasTableError) {
+    throw areasTableError
+  }
+
+  return []
+}
+
 export async function fetchPropertiesInBounds(bounds: {
   north: number
   south: number

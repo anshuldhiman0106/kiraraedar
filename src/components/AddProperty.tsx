@@ -639,6 +639,7 @@ const AddProperty = ({ children }: Props) => {
                     <SelectItem value="single">Single</SelectItem>
                     <SelectItem value="duo">Duo</SelectItem>
                     <SelectItem value="triple">Triple</SelectItem>
+                    <SelectItem value="group">Group (4+)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

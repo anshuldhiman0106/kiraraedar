@@ -3,8 +3,15 @@
 import { useEffect, useMemo, useState } from "react"
 import L from "leaflet"
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet"
-import { Button } from "@/components/ui/button"
 import type { Property } from "../types"
+
+export type MarkerSelection = {
+  property: Property
+  clickPoint: {
+    x: number
+    y: number
+  }
+}
 
 export type MapBounds = {
   north: number
@@ -18,12 +25,42 @@ type MapCanvasProps = {
   onBoundsChange: (bounds: MapBounds) => void
   onOpenProperty: (propertyId: string) => void
   isOpen: boolean
+  onInteractionStart?: () => void
+  onSelectProperty?: (selection: MarkerSelection) => void
+  activePropertyId?: string | null
+  onMapClick?: () => void
+  onActiveMarkerPointChange?: (point: { x: number; y: number } | null) => void
 }
 
 const DEFAULT_CENTER: [number, number] = [32.219, 76.3234]
 const GOVT_COLLEGE_DHARAMSHALA: [number, number] = [32.1992, 76.3247]
 
-function MapEventBridge({ onBoundsChange }: { onBoundsChange: (bounds: MapBounds) => void }) {
+function MapEventBridge({
+  onBoundsChange,
+  onInteractionStart,
+  onMapClick,
+  activeProperty,
+  onActiveMarkerPointChange,
+}: {
+  onBoundsChange: (bounds: MapBounds) => void
+  onInteractionStart?: () => void
+  onMapClick?: () => void
+  activeProperty?: Property
+  onActiveMarkerPointChange?: (point: { x: number; y: number } | null) => void
+}) {
+  const updateActiveMarkerPoint = (map: L.Map) => {
+    if (!activeProperty || typeof activeProperty.lat !== "number" || typeof activeProperty.lng !== "number") {
+      onActiveMarkerPointChange?.(null)
+      return
+    }
+
+    const point = map.latLngToContainerPoint([activeProperty.lat, activeProperty.lng])
+    const size = map.getSize()
+    const isWithinCanvas = point.x >= 0 && point.y >= 0 && point.x <= size.x && point.y <= size.y
+
+    onActiveMarkerPointChange?.(isWithinCanvas ? { x: point.x, y: point.y } : null)
+  }
+
   useMapEvents({
     load(event) {
       const bounds = event.target.getBounds()
@@ -33,6 +70,7 @@ function MapEventBridge({ onBoundsChange }: { onBoundsChange: (bounds: MapBounds
         east: bounds.getEast(),
         west: bounds.getWest(),
       })
+      updateActiveMarkerPoint(event.target)
     },
     moveend(event) {
       const bounds = event.target.getBounds()
@@ -42,6 +80,22 @@ function MapEventBridge({ onBoundsChange }: { onBoundsChange: (bounds: MapBounds
         east: bounds.getEast(),
         west: bounds.getWest(),
       })
+      updateActiveMarkerPoint(event.target)
+    },
+    move(event) {
+      updateActiveMarkerPoint(event.target)
+    },
+    movestart() {
+      onInteractionStart?.()
+    },
+    zoomstart() {
+      onInteractionStart?.()
+    },
+    dragstart() {
+      onInteractionStart?.()
+    },
+    click() {
+      onMapClick?.()
     },
   })
   return null
@@ -72,48 +126,62 @@ function MapResizer({ isOpen }: { isOpen: boolean }) {
   return null
 }
 
-function usePriceIcon(price: number, compact = false) {
+function usePriceIcon(price: number, isActive = false, compact = false) {
   const label = compact ? `Rs ${price}` : `Rs ${price}`
   const padding = compact ? "4px 8px" : "6px 10px"
   const fontSize = compact ? "11px" : "12px"
   const iconWidth = compact ? 56 : 64
   const iconHeight = compact ? 24 : 28
+  const background = isActive ? "#111827" : "#ffffff"
+  const textColor = isActive ? "#ffffff" : "#111827"
+  const border = isActive ? "1px solid #111827" : "1px solid #d4d4d8"
+  const shadow = isActive ? "0 6px 18px rgba(0,0,0,.4)" : "0 2px 8px rgba(0,0,0,.25)"
 
   return useMemo(
     () =>
       L.divIcon({
         className: "",
-        html: `<div style="background:#ffffff;border:1px solid #d4d4d8;border-radius:9999px;padding:${padding};font-size:${fontSize};font-weight:700;color:#111827;box-shadow:0 2px 8px rgba(0,0,0,.25);white-space:nowrap">${label}</div>`,
+        html: `<div style="background:${background};border:${border};border-radius:9999px;padding:${padding};font-size:${fontSize};font-weight:700;color:${textColor};box-shadow:${shadow};white-space:nowrap">${label}</div>`,
         iconSize: [iconWidth, iconHeight],
         iconAnchor: [iconWidth / 2, iconHeight / 2],
       }),
-    [fontSize, iconHeight, iconWidth, label, padding],
+    [background, border, fontSize, iconHeight, iconWidth, label, padding, shadow, textColor],
   )
 }
 
 function PriceMarker({
   property,
   onOpenProperty,
+  onSelectProperty,
+  isActive,
 }: {
   property: Property
   onOpenProperty: (propertyId: string) => void
+  onSelectProperty?: (selection: MarkerSelection) => void
+  isActive: boolean
 }) {
-  const icon = usePriceIcon(property.rent, false)
+  const icon = usePriceIcon(property.rent, isActive, false)
 
   return (
-    <Marker position={[property.lat as number, property.lng as number]} icon={icon}>
-      <Popup>
-        <div className="min-w-[180px] space-y-2">
-          <p className="font-semibold">{property.title}</p>
-          <p className="text-sm text-muted-foreground">
-            Rs {property.rent} | {property.area || "Dharamshala"}
-          </p>
-          <Button type="button" size="sm" onClick={() => onOpenProperty(property.id)} className="w-full">
-            View details
-          </Button>
-        </div>
-      </Popup>
-    </Marker>
+    <Marker
+      position={[property.lat as number, property.lng as number]}
+      icon={icon}
+      eventHandlers={{
+        click: (event) => {
+          onSelectProperty?.({
+            property,
+            clickPoint: {
+              x: event.containerPoint.x,
+              y: event.containerPoint.y,
+            },
+          })
+        },
+        dblclick: () => {
+          onOpenProperty(property.id)
+        },
+      }}
+      zIndexOffset={isActive ? 1200 : 800}
+    />
   )
 }
 
@@ -141,13 +209,28 @@ function CollegeMarker() {
   )
 }
 
-export function MapCanvas({ properties, onBoundsChange, onOpenProperty, isOpen }: MapCanvasProps) {
+export function MapCanvas({
+  properties,
+  onBoundsChange,
+  onOpenProperty,
+  isOpen,
+  onInteractionStart,
+  onSelectProperty,
+  activePropertyId,
+  onMapClick,
+  onActiveMarkerPointChange,
+}: MapCanvasProps) {
   const mapTilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY || ""
   const [useFallbackTiles, setUseFallbackTiles] = useState(false)
 
   const validProperties = useMemo(
     () => properties.filter((property) => typeof property.lat === "number" && typeof property.lng === "number"),
     [properties],
+  )
+
+  const activeProperty = useMemo(
+    () => validProperties.find((property) => property.id === activePropertyId),
+    [activePropertyId, validProperties],
   )
 
   if (!mapTilerKey) {
@@ -169,7 +252,6 @@ export function MapCanvas({ properties, onBoundsChange, onOpenProperty, isOpen }
         markerZoomAnimation
       >
         <MapResizer isOpen={isOpen} />
-        <MapEventBridge onBoundsChange={onBoundsChange} />
         {useFallbackTiles ? (
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -180,7 +262,7 @@ export function MapCanvas({ properties, onBoundsChange, onOpenProperty, isOpen }
         ) : (
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | &copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>'
-            url={`https://api.maptiler.com/maps/satellite-v2/{z}/{x}/{y}.png?key=${mapTilerKey}`}
+            url={`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${mapTilerKey}`}
             updateWhenIdle
             keepBuffer={4}
             eventHandlers={{
@@ -188,8 +270,21 @@ export function MapCanvas({ properties, onBoundsChange, onOpenProperty, isOpen }
             }}
           />
         )}
+        <MapEventBridge
+          onBoundsChange={onBoundsChange}
+          onInteractionStart={onInteractionStart}
+          onMapClick={onMapClick}
+          activeProperty={activeProperty}
+          onActiveMarkerPointChange={onActiveMarkerPointChange}
+        />
         {validProperties.map((property) => (
-          <PriceMarker key={property.id} property={property} onOpenProperty={onOpenProperty} />
+          <PriceMarker
+            key={property.id}
+            property={property}
+            onOpenProperty={onOpenProperty}
+            onSelectProperty={onSelectProperty}
+            isActive={activePropertyId === property.id}
+          />
         ))}
         <CollegeMarker />
       </MapContainer>

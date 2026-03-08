@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetClose, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { supabase } from "@/lib/supabase"
@@ -18,7 +19,7 @@ import { MapSearchPanel } from "@/features/home/components/map-search-panel"
 import { HeaderActions } from "@/features/home/components/profile-menu"
 import { SearchBar } from "@/features/home/components/search-bar"
 import { ListingCard } from "@/features/home/components/listing-card"
-import { fetchAvailableProperties, fetchAvailablePropertiesCount, fetchPropertiesInBounds } from "@/features/home/services"
+import { fetchAreas, fetchAvailableProperties, fetchAvailablePropertiesCount, fetchPropertiesInBounds } from "@/features/home/services"
 import type { Property } from "@/features/home/types"
 import type { MapBounds } from "@/features/home/components/map-canvas"
 
@@ -33,7 +34,9 @@ export default function HomePage() {
   const [currentPage, setCurrentPage] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("newest")
-  const [selectedArea, setSelectedArea] = useState("all")
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([])
+  const [areaOptions, setAreaOptions] = useState<string[]>([])
+  const [loadingAreas, setLoadingAreas] = useState(true)
   const [selectedGender, setSelectedGender] = useState("all")
   const [selectedCapacity, setSelectedCapacity] = useState("all")
   const [furnishedOnly, setFurnishedOnly] = useState(false)
@@ -78,6 +81,23 @@ export default function HomePage() {
       setLoadingMore(false)
     }
   }, [currentPage, hasMore, loadPropertiesPage, loading, loadingMore])
+
+  useEffect(() => {
+    const loadAreas = async () => {
+      try {
+        setLoadingAreas(true)
+        const areas = await fetchAreas()
+        setAreaOptions(areas)
+      } catch (error) {
+        console.error(error)
+        toast.error("Failed to load areas")
+      } finally {
+        setLoadingAreas(false)
+      }
+    }
+
+    void loadAreas()
+  }, [])
 
   useEffect(() => {
     const loadInitialProperties = async () => {
@@ -198,13 +218,13 @@ export default function HomePage() {
   const hasActiveFilters = useMemo(
     () =>
       searchQuery.trim().length > 0 ||
-      selectedArea !== "all" ||
+      selectedAreas.length > 0 ||
       selectedGender !== "all" ||
       selectedCapacity !== "all" ||
       furnishedOnly ||
       nearCollegeOnly ||
       !!mapAppliedBounds,
-    [furnishedOnly, mapAppliedBounds, nearCollegeOnly, searchQuery, selectedArea, selectedCapacity, selectedGender],
+    [furnishedOnly, mapAppliedBounds, nearCollegeOnly, searchQuery, selectedAreas, selectedCapacity, selectedGender],
   )
 
   useEffect(() => {
@@ -285,6 +305,7 @@ export default function HomePage() {
 
   const searchFilteredProperties = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const normalizedSelectedAreas = selectedAreas.map((area) => area.toLowerCase())
 
     const visibleProperties = properties.filter((property) => {
       const matchesQuery =
@@ -293,7 +314,8 @@ export default function HomePage() {
         property.address.toLowerCase().includes(query) ||
         (property.area ?? "").toLowerCase().includes(query)
 
-      const matchesArea = selectedArea === "all" || property.area === selectedArea
+      const propertyArea = (property.area ?? "").toLowerCase()
+      const matchesArea = normalizedSelectedAreas.length === 0 || normalizedSelectedAreas.includes(propertyArea)
       const matchesGender = selectedGender === "all" || property.gender === selectedGender
       const matchesCapacity = selectedCapacity === "all" || property.capacity === selectedCapacity
       const matchesFurnished = !furnishedOnly || !!property.furnished
@@ -315,7 +337,7 @@ export default function HomePage() {
       const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
       return bTime - aTime
     })
-  }, [furnishedOnly, nearCollegeOnly, properties, searchQuery, selectedArea, selectedCapacity, selectedGender, sortBy])
+  }, [furnishedOnly, nearCollegeOnly, properties, searchQuery, selectedAreas, selectedCapacity, selectedGender, sortBy])
 
   const filteredProperties = useMemo(() => {
     const sourceProperties = mapAppliedBounds ? mapLiveProperties : searchFilteredProperties
@@ -343,7 +365,7 @@ export default function HomePage() {
     : filteredProperties.length
 
   const resetFilters = () => {
-    setSelectedArea("all")
+    setSelectedAreas([])
     setSelectedGender("all")
     setSelectedCapacity("all")
     setFurnishedOnly(false)
@@ -351,9 +373,27 @@ export default function HomePage() {
     setSortBy("newest")
   }
 
+  const toggleAreaSelection = (area: string) => {
+    setSelectedAreas((currentAreas) =>
+      currentAreas.includes(area)
+        ? currentAreas.filter((currentArea) => currentArea !== area)
+        : [...currentAreas, area],
+    )
+  }
+
   const clearMapAreaSearch = () => {
     setMapAppliedBounds(null)
     setMapLiveProperties([])
+  }
+
+  const handleCloseMap = () => {
+    setMapOpen(false)
+    clearMapAreaSearch()
+  }
+
+  const handleOpenPropertyFromMap = (propertyId: string) => {
+    handleCloseMap()
+    router.push(`/detail/${propertyId}`)
   }
 
   const handleMapBoundsChange = useCallback(
@@ -437,7 +477,7 @@ export default function HomePage() {
 
         <div className="mb-10 lg:mb-20 space-y-4 lg:space-y-0">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col sm:flex-row gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <h2 className="text-xl font-bold text-foreground sm:text-2xl lg:text-3xl">{displayedRoomsCount} rooms</h2>
               <Separator orientation="vertical" className="hidden sm:block h-6 bg-border" />
               <div className="flex items-center gap-2 text-base text-muted-foreground">
@@ -472,70 +512,89 @@ export default function HomePage() {
                 </SheetTrigger>
                 <SheetContent
                   side={isDesktop ? "right" : "bottom"}
-                  className={isDesktop ? "bg-card border-border/50" : "rounded-t-3xl bg-card border-border/50"}
+                  className={
+                    isDesktop
+                      ? "h-dvh bg-card border-border/50 flex flex-col overflow-hidden"
+                      : "h-[90vh] rounded-t-3xl bg-card border-border/50 flex flex-col overflow-hidden"
+                  }
                 >
-                  <SheetHeader>
+                  <SheetHeader className="shrink-0 border-b border-border/50 px-4 py-3">
                     <SheetTitle>Filters</SheetTitle>
                   </SheetHeader>
-                  <div className="px-4 pb-2 space-y-4">
-                    <div className="space-y-2">
-                      <Label>Area</Label>
-                      <Select value={selectedArea} onValueChange={setSelectedArea}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All areas" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All areas</SelectItem>
-                          <SelectItem value="McLeod Ganj">McLeod Ganj</SelectItem>
-                          <SelectItem value="Shyam Nagar">Shyam Nagar</SelectItem>
-                          <SelectItem value="Ram Nagar">Ram Nagar</SelectItem>
-                          <SelectItem value="Sakoh">Sakoh</SelectItem>
-                          <SelectItem value="Education Board">Education Board</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <ScrollArea className="min-h-0 flex-1 px-4 py-3">
+                    <div className="space-y-4 pr-3">
+                      <div className="space-y-2">
+                        <Label>Area</Label>
+                        <div className="flex flex-wrap gap-2 rounded-xl border border-border/60 p-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={selectedAreas.length === 0 ? "default" : "outline"}
+                            onClick={() => setSelectedAreas([])}
+                          >
+                            All areas
+                          </Button>
+                          {loadingAreas && <span className="text-sm text-muted-foreground">Loading areas...</span>}
+                          {!loadingAreas && areaOptions.length === 0 && (
+                            <span className="text-sm text-muted-foreground">No areas available</span>
+                          )}
+                          {!loadingAreas && areaOptions.map((area) => (
+                            <Button
+                              key={area}
+                              type="button"
+                              size="sm"
+                              variant={selectedAreas.includes(area) ? "default" : "outline"}
+                              onClick={() => toggleAreaSelection(area)}
+                            >
+                              {area}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label>Gender</Label>
-                      <Select value={selectedGender} onValueChange={setSelectedGender}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Any gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Any gender</SelectItem>
-                          <SelectItem value="girls">Girls</SelectItem>
-                          <SelectItem value="boys">Boys</SelectItem>
-                          <SelectItem value="mixed">Mixed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      <div className="space-y-2">
+                        <Label>Gender</Label>
+                        <Select value={selectedGender} onValueChange={setSelectedGender}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Any gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Any gender</SelectItem>
+                            <SelectItem value="girls">Girls</SelectItem>
+                            <SelectItem value="boys">Boys</SelectItem>
+                            <SelectItem value="mixed">Mixed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label>Capacity</Label>
-                      <Select value={selectedCapacity} onValueChange={setSelectedCapacity}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Any capacity" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Any capacity</SelectItem>
-                          <SelectItem value="single">Single</SelectItem>
-                          <SelectItem value="duo">Duo</SelectItem>
-                          <SelectItem value="triple">Triple</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      <div className="space-y-2">
+                        <Label>Capacity</Label>
+                        <Select value={selectedCapacity} onValueChange={setSelectedCapacity}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Any capacity" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Any capacity</SelectItem>
+                            <SelectItem value="single">Single</SelectItem>
+                            <SelectItem value="duo">Duo</SelectItem>
+                            <SelectItem value="triple">Triple</SelectItem>
+                            <SelectItem value="group">Group (4+)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-3">
-                      <Label htmlFor="furnished-only">Furnished only</Label>
-                      <Switch id="furnished-only" checked={furnishedOnly} onCheckedChange={setFurnishedOnly} />
-                    </div>
+                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-3">
+                        <Label htmlFor="furnished-only">Furnished only</Label>
+                        <Switch id="furnished-only" checked={furnishedOnly} onCheckedChange={setFurnishedOnly} />
+                      </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-border/60 p-3">
-                      <Label htmlFor="near-college-only">Near college only</Label>
-                      <Switch id="near-college-only" checked={nearCollegeOnly} onCheckedChange={setNearCollegeOnly} />
+                      <div className="flex items-center justify-between rounded-xl border border-border/60 p-3">
+                        <Label htmlFor="near-college-only">Near college only</Label>
+                        <Switch id="near-college-only" checked={nearCollegeOnly} onCheckedChange={setNearCollegeOnly} />
+                      </div>
                     </div>
-                  </div>
-                  <SheetFooter className="flex-row gap-2">
+                  </ScrollArea>
+                  <SheetFooter className="shrink-0 border-t border-border/50 p-4 flex-row gap-2">
                     <Button type="button" variant="outline" onClick={resetFilters} className="h-11 flex-1 text-sm">
                       Reset
                     </Button>
@@ -550,76 +609,74 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <Sheet open={mapOpen} onOpenChange={setMapOpen}>
-          <SheetContent
-            side={isDesktop ? "right" : "bottom"}
-            className={
-              isDesktop
-                ? "bg-card border-border/50 p-0 data-[side=right]:w-screen data-[side=right]:sm:w-[min(900px,100vw)] data-[side=right]:sm:max-w-[min(900px,100vw)]"
-                : "bg-card border-border/50 p-0 h-[92vh] rounded-t-2xl"
-            }
-          >
-            <SheetHeader className="border-b border-border/50">
-              <SheetTitle>Map Search</SheetTitle>
-            </SheetHeader>
-            <div
-              className={
-                isDesktop
-                  ? "flex-1 min-h-0 p-2 sm:p-4"
-                  : "h-[calc(92vh-150px)] min-h-[320px] p-2"
-              }
-            >
+
+        {isDesktop && mapOpen ? (
+          <div className="fixed inset-0 top-[64px] z-50 bg-card border-b border-border/50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+              <h2 className="text-lg font-semibold">Map Search</h2>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={handleCloseMap}>
+                  ✕
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 h-[calc(100vh-128px)] p-2">
               <MapSearchPanel
-                properties={mapLiveProperties.length ? mapLiveProperties : searchFilteredProperties}
+                properties={mapAppliedBounds ? mapLiveProperties : searchFilteredProperties}
                 onBoundsChange={handleMapBoundsChange}
-                onOpenProperty={(propertyId) => router.push(`/detail/${propertyId}`)}
+                onOpenProperty={handleOpenPropertyFromMap}
+                onCloseMap={handleCloseMap}
                 isOpen={mapOpen}
               />
             </div>
-            <SheetFooter className="border-t border-border/50 p-2 sm:p-4">
-              <Button type="button" variant="outline" onClick={clearMapAreaSearch} className="w-full text-sm sm:w-auto">
-                Clear Map Area
-              </Button>
-              <SheetClose asChild>
-                <Button type="button" variant="outline" className="w-full text-sm sm:w-auto">
-                  Done
+          </div>
+        ) : !isDesktop && mapOpen ? (
+          <div className="fixed inset-0 top-16 z-40 bg-transparent">
+            <MapSearchPanel
+              properties={mapAppliedBounds ? mapLiveProperties : searchFilteredProperties}
+              onBoundsChange={handleMapBoundsChange}
+              onOpenProperty={handleOpenPropertyFromMap}
+              onCloseMap={handleCloseMap}
+              isOpen={mapOpen}
+            />
+          </div>
+        ) : null}
+
+        {!mapOpen && (
+          <>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5 lg:gap-7">
+              {loading
+                ? Array.from({ length: 12 }).map((_, i) => (
+                    <Skeleton key={`skeleton-${i}`} className="aspect-square rounded-2xl bg-muted" />
+                  ))
+                : filteredProperties.map((property, index) => (
+                    <ListingCard
+                      key={property.id}
+                      property={property}
+                      index={index}
+                      isFavorite={favoriteIds.includes(property.id)}
+                      onToggleFavorite={handleToggleFavorite}
+                    />
+                  ))}
+            </div>
+
+            <div className="py-20 text-center">
+              {hasMore ? (
+                <Button
+                  size="lg"
+                  onClick={() => void handleLoadMore()}
+                  disabled={loadingMore}
+                  className="h-14 rounded-full border-2 border-border/50 bg-transparent px-14 text-base transition-colors hover:bg-card disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {loadingMore ? "Loading..." : "Show more rooms"}
                 </Button>
-              </SheetClose>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5 lg:gap-7">
-          {loading
-            ? Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={`skeleton-${i}`} className="aspect-square rounded-2xl bg-muted" />
-              ))
-            : filteredProperties.map((property, index) => (
-                <ListingCard
-                  key={property.id}
-                  property={property}
-                  index={index}
-                  isFavorite={favoriteIds.includes(property.id)}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              ))}
-        </div>
-
-        <div className="py-20 text-center">
-          {hasMore ? (
-            <Button
-              size="lg"
-              onClick={() => void handleLoadMore()}
-              disabled={loadingMore}
-              className="h-14 rounded-full border-2 border-border/50 bg-transparent px-14 text-base transition-colors hover:bg-card disabled:pointer-events-none disabled:opacity-50"
-            >
-              {loadingMore ? "Loading..." : "Show more rooms"}
-            </Button>
-          ) : (
-            <p className="text-base text-muted-foreground">You have reached the end of listings.</p>
-          )}
-        </div>
-        <div ref={loadMoreRef} className="h-2 w-full" />
+              ) : (
+                <p className="text-base text-muted-foreground">You have reached the end of listings.</p>
+              )}
+            </div>
+            <div ref={loadMoreRef} className="h-2 w-full" />
+          </>
+        )}
       </div>
 
       {!mapOpen && (
