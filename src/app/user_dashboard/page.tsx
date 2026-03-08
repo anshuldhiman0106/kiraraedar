@@ -488,10 +488,13 @@ export default function UniversalDashboard() {
         .single();
 
       if (fetchError) {
+        console.error("Fetch error:", fetchError);
         toast.error("Failed to fetch property details");
         setActionPropertyId(null);
         return;
       }
+
+      console.log("Property images:", property?.images);
 
       // Delete images from storage if they exist
       if (property?.images && Array.isArray(property.images) && property.images.length > 0) {
@@ -499,19 +502,29 @@ export default function UniversalDashboard() {
           .map((url: string) => {
             // Extract the storage path from the public URL
             // URL format: https://{project}.supabase.co/storage/v1/object/public/room-images/{path}
-            const match = url.match(/\/room-images\/(.+)$/);
-            return match ? match[1] : null;
+            // We need to extract everything after "room-images/"
+            const match = url.match(/\/room-images\/(.+?)(?:\?|$)/);
+            const path = match ? match[1] : null;
+            console.log("URL:", url, "-> Path:", path);
+            return path;
           })
           .filter((path): path is string => path !== null);
 
+        console.log("Paths to delete:", imagePaths);
+
         if (imagePaths.length > 0) {
-          const { error: storageError } = await supabase.storage
+          const { data: deleteData, error: storageError } = await supabase.storage
             .from("room-images")
             .remove(imagePaths);
 
+          console.log("Storage delete result:", { data: deleteData, error: storageError });
+
           if (storageError) {
             console.error("Failed to delete images from storage:", storageError);
+            toast.error("Failed to delete images, but continuing with property deletion");
             // Continue with property deletion even if image deletion fails
+          } else {
+            console.log("Successfully deleted images from storage");
           }
         }
       }
@@ -526,6 +539,7 @@ export default function UniversalDashboard() {
       setActionPropertyId(null);
 
       if (deleteError) {
+        console.error("Delete error:", deleteError);
         toast.error("Failed to delete property");
         return;
       }
