@@ -892,7 +892,7 @@ export default function UniversalDashboard() {
                       </div>
                     </div>
                     {profile.subscription_status === "active" ? <Badge className="bg-emerald-600 text-white">Active - Featured Owner</Badge> : <Badge variant="destructive">Inactive - Basic Plan</Badge>}
-                    {profile.verified_landlord && <Badge className="ml-2 bg-blue-600 text-white">Verified Landlord</Badge>}
+                    {profile.verified_landlord && <Badge className="ml-2 bg-blue-600 text-white">Verified Owner</Badge>}
                     <p className="mt-3 text-sm text-muted-foreground">{profile.subscription_status === "active" ? "Priority placement is enabled." : "Upgrade to boost listing visibility and lead conversion."}</p>
                     <p className="mt-2 text-sm font-medium text-foreground">Plan price: Rs {OWNER_PLAN_PRICE_INR}</p>
                     <Button className="mt-4 h-10 rounded-lg" onClick={handleUpgradePlan} disabled={upgradingPlan}>

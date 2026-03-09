@@ -6,6 +6,7 @@ import { Bed, Heart, MapPin, ShieldCheck, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardTitle } from "@/components/ui/card"
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
 import { useRouter } from "next/navigation"
 import type { Property } from "../types"
 import { PropertyCarousel } from "./property-carousel"
@@ -77,12 +78,38 @@ export function ListingCard({ property, index, isFavorite, onToggleFavorite }: L
               )}
               <span className="line-clamp-1 text-sm font-medium">{property.owner?.full_name || "Owner"}</span>
             </div>
-            {property.owner?.verified_landlord && (
-              <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/80 px-2.5 py-1 text-xs font-semibold">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Verified
-              </div>
-            )}
+            <HoverCard openDelay={200}>
+              <HoverCardTrigger asChild>
+                <div
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold cursor-help ${
+                    property.owner?.verified_landlord
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30"
+                      : "bg-orange-500/80 text-white"
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {property.owner?.verified_landlord ? "Verified" : "Not verified"}
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-72 text-sm" side="top">
+                {property.owner?.verified_landlord ? (
+                  <div>
+                    <p className="font-semibold mb-1">Verified listing</p>
+                    <p className="text-muted-foreground">
+                      Property and details are verified by the platform.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="font-semibold mb-1">Not verified</p>
+                    <p className="text-muted-foreground">
+                      Owner verification is pending. We recommend extra caution when contacting.
+                    </p>
+                  </div>
+                )}
+              </HoverCardContent>
+            </HoverCard>
           </div>
 
           <div className="mb-2 flex flex-wrap gap-1.5">

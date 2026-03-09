@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Bed, Building, ChevronLeft, Copy, Heart, MapPin, Share, ShieldCheck, Sparkles, Users, Verified } from "lucide-react"
+import { Bed, Building, ChevronLeft, Copy, Flag, Heart, MapPin, Share, ShieldCheck, Sparkles, Users, Verified } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
 import { supabase } from "@/lib/supabase"
 import {
   fetchOwnerProfileById,
@@ -283,6 +284,35 @@ export default function PropertyDetailPage() {
     toast.success(isSaved ? "Removed from favorites" : "Saved to favorites")
   }
 
+  const handleReportListing = async () => {
+    if (!property) {
+      return
+    }
+
+    const currentUrl = typeof window !== "undefined" ? window.location.href : ""
+    const reportDetails = `Listing ID: ${property.id}\nTitle: ${property.title}\nURL: ${currentUrl}`
+    
+    // Try to copy details to clipboard
+    try {
+      await navigator.clipboard.writeText(reportDetails)
+      toast.success("Listing details copied to clipboard")
+    } catch {
+      // Silent fail - still open email
+    }
+
+    // Open email with prefilled subject and body
+    const subject = encodeURIComponent(`Report Listing: ${property.title}`)
+    const body = encodeURIComponent(
+      `I would like to report the following listing:\n\n` +
+      `Listing ID: ${property.id}\n` +
+      `Title: ${property.title}\n` +
+      `URL: ${currentUrl}\n\n` +
+      `Reason for reporting:\n`
+    )
+    
+    window.location.href = `mailto:kiraedarr@gmail.com?subject=${subject}&body=${body}`
+  }
+
   const handleCopyCoordinates = async () => {
     if (!hasCoordinates) {
       toast.error("Location coordinates are not available")
@@ -394,6 +424,10 @@ export default function PropertyDetailPage() {
               <Heart className={`h-4 w-4 mr-1 ${isSaved ? "fill-red-500 text-red-500" : ""}`} />
               Save
             </Button>
+            <Button variant="ghost" size="sm" className="border border-border/60 bg-card" onClick={handleReportListing}>
+              <Flag className="h-4 w-4 mr-1" />
+              Report
+            </Button>
           </div>
         </div>
 
@@ -403,6 +437,38 @@ export default function PropertyDetailPage() {
             <Badge variant={property.available ? "secondary" : "destructive"}>
               {property.available ? "Available" : "Booked"}
             </Badge>
+            <HoverCard openDelay={200}>
+              <HoverCardTrigger asChild>
+                <Badge
+                  variant="outline"
+                  className={`cursor-help flex items-center gap-1 border-0 ${
+                    owner?.verified_landlord
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                      : "border-orange-500 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+                  }`}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {owner?.verified_landlord ? "Verified" : "Not verified"}
+                </Badge>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80 text-sm" side="bottom">
+                {owner?.verified_landlord ? (
+                  <div>
+                    <p className="font-semibold mb-1">Verified listing</p>
+                    <p className="text-muted-foreground">
+                      Property and details are verified by the platform. The owner's identity and ownership documents have been checked.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="font-semibold mb-1">Not verified</p>
+                    <p className="text-muted-foreground">
+                      Owner verification is pending. We recommend extra caution when contacting and always verify details in person before making any payments.
+                    </p>
+                  </div>
+                )}
+              </HoverCardContent>
+            </HoverCard>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{property.rating ? `★ ${property.rating.toFixed(1)}` : "New listing"}</span>
@@ -567,10 +633,14 @@ export default function PropertyDetailPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 mt-0.5" />
+                <ShieldCheck className={`h-5 w-5 mt-0.5 ${owner?.verified_landlord ? "text-emerald-500" : "text-orange-500"}`} />
                 <div>
-                  <h3 className="font-medium">Verified listing</h3>
-                  <p className="text-sm text-muted-foreground">Property and details are verified by the platform.</p>
+                  <h3 className="font-medium">{owner?.verified_landlord ? "Verified listing" : "Not verified"}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {owner?.verified_landlord 
+                      ? "Property and details are verified by the platform." 
+                      : "Owner verification is pending. Please verify all details in person."}
+                  </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
